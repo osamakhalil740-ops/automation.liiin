@@ -3,8 +3,6 @@ import prisma from '@/lib/prisma';
 import { getUserFromToken, unauthorized } from '@/lib/auth';
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
 export async function GET() {
     const userId = await getUserFromToken();
     if (!userId) return unauthorized();
@@ -31,9 +29,12 @@ export async function POST(req: Request) {
         // Generate content using Gemini AI
         let content = '';
         try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.0-flash',
-                contents: `You are a LinkedIn content creator. Write a highly engaging, professional LinkedIn post about: "${topic}".
+            // Initialize AI only when needed and if API key exists
+            if (process.env.GEMINI_API_KEY) {
+                const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.0-flash',
+                    contents: `You are a LinkedIn content creator. Write a highly engaging, professional LinkedIn post about: "${topic}".
 
 Requirements:
 - Write in first-person perspective
@@ -46,8 +47,11 @@ Requirements:
 - Sound authentic and human, not generic
 
 Write only the post content, no preamble.`
-            });
-            content = response.text || '';
+                });
+                content = response.text || '';
+            } else {
+                throw new Error('GEMINI_API_KEY not configured');
+            }
         } catch (aiErr) {
             console.error('Gemini generation failed:', aiErr);
             content = `[Draft] LinkedIn post about: ${topic}\n\nThis post was saved without AI generation because the API key may not be configured. Edit this content manually or add your GEMINI_API_KEY to your .env file.`;
