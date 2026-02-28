@@ -1,0 +1,33 @@
+﻿node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+/generated/prisma
+
+# Database files (contains sensitive user data and cookies)
+*.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Screenshots from automation
+screenshot_*.png
+screenshots/
+
+# Backup files
+*.backup.ts
+*.original.ts
+*.backup.js
+
+# Temporary test files
+tmp_rovodev_*
+
+# Documentation files (optional - uncomment if you want to exclude)
+# DIAGNOSTIC_RESULTS.md
+# NEXT_STEPS.md
+# COMPLETE_ANALYSIS.md
+# SETUP_CHECKLIST.md

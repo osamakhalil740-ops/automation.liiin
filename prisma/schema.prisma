@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  
+  settings  Settings?
+  keywords  Keyword[]
+  comments  Comment[]
+  logs      Log[]
+  autoPosts AutoPost[]
+}
+
+model Settings {
+  id                    String  @id @default(uuid())
+  maxCommentsPerDay     Int     @default(20)
+  maxCommentsPerHour    Int     @default(5)
+  maxCommentsPerWeek    Int     @default(100)
+  maxProfileViewsPerDay Int     @default(100)
+  minLikes              Int     @default(10)
+  minComments           Int     @default(2)
+  minDelayMins          Int     @default(30)
+  maxDelayMins          Int     @default(90)
+  workHoursOnly         Boolean @default(true)
+  workHoursStart        Int     @default(9)
+  workHoursEnd          Int     @default(18)
+  skipWeekends          Boolean @default(true)
+  systemActive          Boolean @default(false)
+  linkedinSessionCookie String  @default("")
+  
+  userId                String  @unique
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Keyword {
+  id        String   @id @default(uuid())
+  keyword   String
+  active    Boolean  @default(true)
+  matches   Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  text      String
+  category  String   @default("General")
+  timesUsed Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Log {
+  id        String   @id @default(uuid())
+  action    String
+  postUrl   String
+  comment   String?
+  timestamp DateTime @default(now())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AutoPost {
+  id        String   @id @default(uuid())
+  topic     String
+  content   String
+  status    String   @default("Pending")
+  createdAt DateTime @default(now())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+
+
