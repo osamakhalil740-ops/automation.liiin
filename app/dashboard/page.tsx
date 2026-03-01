@@ -18,7 +18,7 @@ import Chart from '@/components/dashboard/Chart';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input, { TextArea } from '@/components/ui/Input';
-import { Spinner } from '@/components/ui/Spinner';
+import Spinner from '@/components/ui/Spinner';
 import Badge from '@/components/ui/Badge';
 
 export default function Dashboard() {
