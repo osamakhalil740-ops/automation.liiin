@@ -6,6 +6,7 @@ export interface CardProps {
   padding?: 'none' | 'sm' | 'md' | 'lg';
   hover?: boolean;
   className?: string;
+  onClick?: () => void;
 }
 
 export default function Card({
@@ -13,7 +14,8 @@ export default function Card({
   variant = 'default',
   padding = 'md',
   hover = false,
-  className = ''
+  className = '',
+  onClick
 }: CardProps) {
   // Base styles
   const baseStyles = 'rounded-2xl md:rounded-3xl overflow-hidden transition-all duration-300';
@@ -37,10 +39,10 @@ export default function Card({
   // Hover effect
   const hoverStyle = hover ? 'hover:shadow-xl hover:shadow-gray-200/60 hover:-translate-y-1' : '';
   
-  const combinedStyles = `${baseStyles} ${variantStyles[variant]} ${paddingStyles[padding]} ${hoverStyle} ${className}`;
+  const combinedStyles = `${baseStyles} ${variantStyles[variant]} ${paddingStyles[padding]} ${hoverStyle} ${onClick ? 'cursor-pointer' : ''} ${className}`;
   
   return (
-    <div className={combinedStyles}>
+    <div className={combinedStyles} onClick={onClick}>
       {children}
     </div>
   );
