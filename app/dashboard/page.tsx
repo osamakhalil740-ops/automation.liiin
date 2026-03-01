@@ -169,7 +169,9 @@ export default function Dashboard() {
       maxCommentsPerDay: Number(formData.get('maxCommentsPerDay')),
       maxProfileViewsPerDay: Number(formData.get('maxProfileViewsPerDay')),
       minLikes: Number(formData.get('minLikes')),
+      maxLikes: Number(formData.get('maxLikes')),
       minComments: Number(formData.get('minComments')),
+      maxComments: Number(formData.get('maxComments')),
       minDelayMins: Number(formData.get('minDelayMins')),
       maxDelayMins: Number(formData.get('maxDelayMins')),
       linkedinSessionCookie: formData.get('linkedinSessionCookie') as string
@@ -179,7 +181,7 @@ export default function Dashboard() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    alert('Settings Saved!');
+    alert('✅ Settings Saved Successfully!');
     fetchData();
   };
 
@@ -495,15 +497,15 @@ export default function Dashboard() {
           </Card>
         );
       case 'cookie-helper':
-        // Redirect to dedicated cookie helper page
+        // Cookie Helper is now at /dashboard/cookie-helper
         if (typeof window !== 'undefined') {
-          window.location.href = '/cookie-helper';
+          window.location.href = '/dashboard/cookie-helper';
         }
         return (
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <Spinner size="lg" />
-              <p className="mt-4 text-gray-600">Redirecting to Cookie Helper...</p>
+              <p className="mt-4 text-gray-600">Loading Cookie Helper...</p>
             </div>
           </div>
         );
@@ -716,6 +718,98 @@ export default function Dashboard() {
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Post Targeting Criteria Section */}
+                <div className="bg-gradient-to-br from-primary-50 to-secondary-50 rounded-2xl p-6 border-2 border-primary-200">
+                  <h4 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <Search className="w-5 h-5 text-primary-600" />
+                    🎯 Post Targeting Criteria
+                  </h4>
+                  <p className="text-xs text-gray-700 mb-6 font-medium">
+                    Define the exact reach range for posts you want to target during searches
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Likes Range */}
+                    <div className="space-y-4">
+                      <h5 className="text-xs font-bold text-primary-900 uppercase tracking-wide flex items-center gap-2">
+                        👍 Likes Range
+                      </h5>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-2">
+                          Minimum Likes
+                        </label>
+                        <input
+                          type="number"
+                          name="minLikes"
+                          defaultValue={settings.minLikes ?? 10}
+                          min="0"
+                          className="w-full px-4 py-3 bg-white border-2 border-primary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm font-bold text-gray-900"
+                          placeholder="e.g., 100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-2">
+                          Maximum Likes (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          name="maxLikes"
+                          defaultValue={settings.maxLikes ?? 10000}
+                          min="0"
+                          className="w-full px-4 py-3 bg-white border-2 border-primary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm font-bold text-gray-900"
+                          placeholder="e.g., 5000"
+                        />
+                        <p className="text-xs text-gray-600 mt-1 font-medium">Leave high to target viral posts</p>
+                      </div>
+                    </div>
+
+                    {/* Comments Range */}
+                    <div className="space-y-4">
+                      <h5 className="text-xs font-bold text-secondary-900 uppercase tracking-wide flex items-center gap-2">
+                        💬 Comments Range
+                      </h5>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-2">
+                          Minimum Comments
+                        </label>
+                        <input
+                          type="number"
+                          name="minComments"
+                          defaultValue={settings.minComments ?? 2}
+                          min="0"
+                          className="w-full px-4 py-3 bg-white border-2 border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-all text-sm font-bold text-gray-900"
+                          placeholder="e.g., 5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-2">
+                          Maximum Comments (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          name="maxComments"
+                          defaultValue={settings.maxComments ?? 1000}
+                          min="0"
+                          className="w-full px-4 py-3 bg-white border-2 border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-all text-sm font-bold text-gray-900"
+                          placeholder="e.g., 500"
+                        />
+                        <p className="text-xs text-gray-600 mt-1 font-medium">Leave high for active discussions</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Helper Info */}
+                  <div className="mt-6 bg-white/70 rounded-lg p-4 border border-primary-200">
+                    <p className="text-xs font-bold text-gray-800 mb-2">💡 How This Works:</p>
+                    <ul className="text-xs text-gray-700 space-y-1 font-medium">
+                      <li>• <strong>Min Likes:</strong> Only target posts with at least this many likes</li>
+                      <li>• <strong>Max Likes:</strong> Skip posts that are too viral (set high for no limit)</li>
+                      <li>• <strong>Min Comments:</strong> Ensure posts have active engagement</li>
+                      <li>• <strong>Max Comments:</strong> Avoid overly saturated discussions</li>
+                    </ul>
                   </div>
                 </div>
 

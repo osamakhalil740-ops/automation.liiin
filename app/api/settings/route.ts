@@ -59,3 +59,8 @@ export async function POST(req: Request) {
         }, { status: 500 });
     }
 }
+
+export async function PUT(req: Request) {
+    // Alias PUT to POST for compatibility
+    return POST(req);
+}
