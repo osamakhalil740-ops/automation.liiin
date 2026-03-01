@@ -575,11 +575,12 @@ async function runOrchestrator() {
     console.log('\n════════════════════════════════════════════════════════════');
     console.log('  🚀 NEXORA LinkedIn Automation Worker v5.0 (PERFORMANCE OPTIMIZED)');
     console.log('  📅 ' + new Date().toLocaleString());
+    console.log('  ⚡ INSTANT START MODE - Ready to process immediately');
     console.log('════════════════════════════════════════════════════════════\n');
 
     while (true) {
         try {
-            // Find all active users
+            // OPTIMIZED: Check for active users every 5 seconds for instant response
             const activeSettings = await prisma.settings.findMany({
                 where: {
                     systemActive: true,
@@ -588,8 +589,8 @@ async function runOrchestrator() {
             });
 
             if (activeSettings.length === 0) {
-                console.log('⏳ No active users. Waiting 60 seconds...');
-                await sleep(60000);
+                console.log('⏳ No active users. Checking again in 5 seconds...');
+                await sleep(5000); // Reduced from 60s to 5s for instant response
                 continue;
             }
 

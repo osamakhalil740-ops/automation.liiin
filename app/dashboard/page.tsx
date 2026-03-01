@@ -91,6 +91,24 @@ export default function Dashboard() {
     // Then poll every 5 seconds
     const interval = setInterval(fetchData, 5000);
     
+    // OPTIMIZED: Auto-start worker on dashboard load for instant response
+    const autoStartWorker = async () => {
+      try {
+        // Check if worker is running
+        const statusRes = await fetch('/api/worker/start');
+        const status = await statusRes.json();
+        
+        if (!status.running) {
+          console.log('🚀 Auto-starting worker for instant response...');
+          await fetch('/api/worker/start', { method: 'POST' });
+        }
+      } catch (error) {
+        console.error('Failed to auto-start worker:', error);
+      }
+    };
+    
+    autoStartWorker();
+    
     return () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
@@ -497,16 +515,113 @@ export default function Dashboard() {
           </Card>
         );
       case 'cookie-helper':
-        // Cookie Helper is now at /dashboard/cookie-helper
-        if (typeof window !== 'undefined') {
-          window.location.href = '/dashboard/cookie-helper';
-        }
         return (
-          <div className="flex items-center justify-center h-96">
-            <div className="text-center">
-              <Spinner size="lg" />
-              <p className="mt-4 text-gray-600">Loading Cookie Helper...</p>
-            </div>
+          <div className="max-w-5xl mx-auto">
+            {/* Cookie Helper - Integrated Version */}
+            <Card className="overflow-hidden">
+              <div className="p-6 md:p-8 border-b border-gray-100 bg-gradient-to-r from-primary-50 to-secondary-50">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-4xl">🍪</span>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      LinkedIn Cookie Helper
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Get your LinkedIn session cookie in 6 simple steps
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 md:p-8">
+                {/* Why Section */}
+                <div className="mb-8 bg-blue-50 rounded-xl p-6 border-2 border-blue-200">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">💡</span>
+                    <div>
+                      <h4 className="text-lg font-bold text-blue-900 mb-2">Why do we need your cookie?</h4>
+                      <p className="text-gray-800 text-sm leading-relaxed font-medium">
+                        The LinkedIn cookie allows our automation to act on your behalf. It's like giving the 
+                        automation a temporary "key" to access LinkedIn as you.
+                      </p>
+                      <div className="mt-3 flex items-center gap-2 flex-wrap">
+                        <Badge variant="success">✓ Safe</Badge>
+                        <Badge variant="success">✓ Encrypted</Badge>
+                        <Badge variant="success">✓ Never Shared</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step-by-Step Instructions */}
+                <div className="space-y-3 mb-8">
+                  {[
+                    { icon: '🌐', title: 'Open LinkedIn', desc: 'Go to linkedin.com and log in' },
+                    { icon: '🔧', title: 'Press F12', desc: 'Open Developer Tools (F12 or Ctrl+Shift+I)' },
+                    { icon: '📱', title: 'Application Tab', desc: 'Click "Application" tab in DevTools' },
+                    { icon: '🍪', title: 'Find Cookies', desc: 'Expand "Cookies" → Click "https://www.linkedin.com"' },
+                    { icon: '📋', title: 'Copy li_at', desc: 'Find "li_at" cookie and copy its VALUE' },
+                    { icon: '✅', title: 'Paste Below', desc: 'Paste the cookie in the settings form above' },
+                  ].map((step, idx) => (
+                    <div key={idx} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center text-sm font-bold shadow-md">
+                          {idx + 1}
+                        </div>
+                      </div>
+                      <div className="flex-1 flex items-center gap-3">
+                        <span className="text-2xl">{step.icon}</span>
+                        <div>
+                          <h5 className="text-base font-bold text-gray-900">{step.title}</h5>
+                          <p className="text-sm text-gray-600 font-medium">{step.desc}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Direct to Settings */}
+                <div className="bg-gradient-to-r from-primary-500 to-secondary-500 rounded-xl p-6 text-center">
+                  <h4 className="text-xl font-bold text-white mb-3">Ready to add your cookie?</h4>
+                  <p className="text-white/90 text-sm mb-4">
+                    Once you've copied the li_at value, go to Settings and paste it in the LinkedIn Session Cookie field
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab('settings')}
+                    variant="secondary"
+                    size="lg"
+                    className="bg-white hover:bg-gray-100 text-primary-600"
+                  >
+                    <Settings className="w-5 h-5 mr-2" />
+                    Go to Settings
+                  </Button>
+                </div>
+
+                {/* Security Notice */}
+                <div className="mt-6 bg-amber-50 rounded-xl p-6 border-2 border-amber-300">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">🔒</span>
+                    <div>
+                      <h4 className="text-lg font-bold text-amber-900 mb-2">Security Notice</h4>
+                      <ul className="text-gray-800 space-y-1.5 text-sm font-medium">
+                        <li className="flex items-start gap-2">
+                          <span className="text-amber-600 font-bold">•</span>
+                          <span>Your cookie is encrypted before being stored</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-amber-600 font-bold">•</span>
+                          <span>Never share your cookie with anyone else</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-amber-600 font-bold">•</span>
+                          <span>Update if automation stops working</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
         );
       case 'autoposts':
@@ -664,25 +779,25 @@ export default function Dashboard() {
                     </h4>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                        <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">
                           Max Comments / Day
                         </label>
                         <input
                           type="number"
                           name="maxCommentsPerDay"
                           defaultValue={settings.maxCommentsPerDay ?? 50}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm font-bold text-gray-900"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                        <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">
                           Max Profile Views / Day
                         </label>
                         <input
                           type="number"
                           name="maxProfileViewsPerDay"
                           defaultValue={settings.maxProfileViewsPerDay ?? 100}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                          className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm font-bold text-gray-900"
                         />
                       </div>
                     </div>
@@ -824,25 +939,25 @@ export default function Dashboard() {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                      <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">
                         Min Delay (Minutes)
                       </label>
                       <input
                         type="number"
                         name="minDelayMins"
                         defaultValue={settings.minDelayMins ?? 15}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm font-bold text-gray-900"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                      <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">
                         Max Delay (Minutes)
                       </label>
                       <input
                         type="number"
                         name="maxDelayMins"
                         defaultValue={settings.maxDelayMins ?? 45}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                        className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all text-sm font-bold text-gray-900"
                       />
                     </div>
                   </div>
