@@ -9,7 +9,15 @@ export async function GET() {
     try {
         const comments = await prisma.comment.findMany({
             where: { userId },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            include: {
+                keyword: {
+                    select: {
+                        id: true,
+                        keyword: true
+                    }
+                }
+            }
         });
         return NextResponse.json(comments);
     } catch (error) {
@@ -23,9 +31,14 @@ export async function POST(req: Request) {
     if (!userId) return unauthorized();
 
     try {
-        const { text, category } = await req.json();
+        const { text, category, keywordId } = await req.json();
         const comment = await prisma.comment.create({
-            data: { text, category: category || 'General', userId }
+            data: { 
+                text, 
+                category: category || 'General', 
+                userId,
+                keywordId: keywordId || null
+            }
         });
         return NextResponse.json(comment);
     } catch (error) {

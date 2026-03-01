@@ -42,14 +42,16 @@ model Settings {
 }
 
 model Keyword {
-  id        String   @id @default(uuid())
-  keyword   String
-  active    Boolean  @default(true)
-  matches   Int      @default(0)
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  keyword     String
+  targetReach Int      @default(1000)
+  active      Boolean  @default(true)
+  matches     Int      @default(0)
+  createdAt   DateTime @default(now())
   
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments    Comment[]
 }
 
 model Comment {
@@ -61,6 +63,9 @@ model Comment {
   
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  keywordId String?
+  keyword   Keyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
 }
 
 model Log {

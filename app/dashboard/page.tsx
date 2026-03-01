@@ -36,8 +36,10 @@ export default function Dashboard() {
 
   // Form states
   const [newKeyword, setNewKeyword] = useState('');
+  const [newKeywordReach, setNewKeywordReach] = useState(1000);
   const [newCommentText, setNewCommentText] = useState('');
   const [newCommentCat, setNewCommentCat] = useState('General');
+  const [newCommentKeywordId, setNewCommentKeywordId] = useState<string>('');
   const [newTopic, setNewTopic] = useState('');
 
   const fetchData = async () => {
@@ -110,9 +112,10 @@ export default function Dashboard() {
     await fetch('/api/keywords', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword: newKeyword })
+      body: JSON.stringify({ keyword: newKeyword, targetReach: newKeywordReach })
     });
     setNewKeyword('');
+    setNewKeywordReach(1000);
     fetchData();
   };
 
@@ -126,10 +129,15 @@ export default function Dashboard() {
     await fetch('/api/comments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: newCommentText, category: newCommentCat })
+      body: JSON.stringify({ 
+        text: newCommentText, 
+        category: newCommentCat,
+        keywordId: newCommentKeywordId || null
+      })
     });
     setNewCommentText('');
     setNewCommentCat('General');
+    setNewCommentKeywordId('');
     fetchData();
   };
 
@@ -276,7 +284,7 @@ export default function Dashboard() {
                     Manage the phrases your AI agent scans for on LinkedIn
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Input
                     type="text"
                     value={newKeyword}
@@ -284,6 +292,17 @@ export default function Dashboard() {
                     placeholder="E.g. #growthhacking"
                     className="min-w-[200px]"
                   />
+                  <select
+                    value={newKeywordReach}
+                    onChange={e => setNewKeywordReach(parseInt(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value={100}>100-500 (Small)</option>
+                    <option value={500}>500-1K (Medium)</option>
+                    <option value={1000}>1K-5K (Large)</option>
+                    <option value={5000}>5K-10K (Viral)</option>
+                    <option value={10000}>10K+ (Mega)</option>
+                  </select>
                   <Button onClick={addKeyword} leftIcon={<Plus className="w-4 h-4" />}>
                     Add
                   </Button>
@@ -299,6 +318,9 @@ export default function Dashboard() {
                       Keyword
                     </th>
                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Target Reach
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
                       Matches
                     </th>
                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500 text-right">
@@ -309,7 +331,7 @@ export default function Dashboard() {
                 <tbody className="divide-y divide-gray-50">
                   {keywords.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-12 text-center">
+                      <td colSpan={4} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center">
                           <div className="w-16 h-16 mb-4 rounded-full bg-gray-100 flex items-center justify-center">
                             <Search className="w-8 h-8 text-gray-400" />
@@ -323,12 +345,20 @@ export default function Dashboard() {
                         </div>
                       </td>
                     </tr>
-                  ) : keywords.map((kw) => (
+                  ) : keywords.map((kw: any) => (
                     <tr key={kw.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="text-sm font-semibold text-gray-900">
                           {kw.keyword}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="primary" size="sm">
+                          {kw.targetReach >= 10000 ? '10K+' : 
+                           kw.targetReach >= 5000 ? '5K-10K' :
+                           kw.targetReach >= 1000 ? '1K-5K' :
+                           kw.targetReach >= 500 ? '500-1K' : '100-500'}
+                        </Badge>
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant="neutral" size="sm">
@@ -366,28 +396,49 @@ export default function Dashboard() {
                 </div>
 
                 {/* Add Comment Form */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-end gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                  <Input
-                    label="Category"
-                    type="text"
-                    value={newCommentCat}
-                    onChange={e => setNewCommentCat(e.target.value)}
-                    placeholder="General"
-                    className="lg:w-40"
-                  />
-                  <TextArea
-                    label="Comment Text"
-                    value={newCommentText}
-                    onChange={e => setNewCommentText(e.target.value)}
-                    placeholder="Type a thoughtful comment..."
-                    rows={2}
-                    className="flex-1 min-w-[250px]"
-                    showCharCount
-                    maxLength={280}
-                  />
-                  <Button onClick={addComment} leftIcon={<Plus className="w-4 h-4" />} className="lg:mb-0">
-                    Add Comment
-                  </Button>
+                <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="flex flex-col lg:flex-row items-start lg:items-end gap-3">
+                    <Input
+                      label="Category"
+                      type="text"
+                      value={newCommentCat}
+                      onChange={e => setNewCommentCat(e.target.value)}
+                      placeholder="General"
+                      className="lg:w-40"
+                    />
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Link to Keyword (Optional)
+                      </label>
+                      <select
+                        value={newCommentKeywordId}
+                        onChange={e => setNewCommentKeywordId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">-- No keyword --</option>
+                        {keywords.map((kw: any) => (
+                          <option key={kw.id} value={kw.id}>
+                            {kw.keyword}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-col lg:flex-row items-start lg:items-end gap-3">
+                    <TextArea
+                      label="Comment Text"
+                      value={newCommentText}
+                      onChange={e => setNewCommentText(e.target.value)}
+                      placeholder="Type a thoughtful comment..."
+                      rows={2}
+                      className="flex-1 min-w-[250px]"
+                      showCharCount
+                      maxLength={280}
+                    />
+                    <Button onClick={addComment} leftIcon={<Plus className="w-4 h-4" />} className="lg:mb-0">
+                      Add Comment
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -408,12 +459,19 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {comments.map((comment) => (
+                  {comments.map((comment: any) => (
                     <Card key={comment.id} variant="default" hover className="group relative">
                       <div className="flex justify-between items-start mb-3">
-                        <Badge variant="primary" size="sm">
-                          {comment.category}
-                        </Badge>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="primary" size="sm">
+                            {comment.category}
+                          </Badge>
+                          {comment.keyword && (
+                            <Badge variant="secondary" size="sm">
+                              🔗 {comment.keyword.keyword}
+                            </Badge>
+                          )}
+                        </div>
                         <button
                           onClick={() => deleteComment(comment.id)}
                           className="text-gray-400 opacity-0 group-hover:opacity-100 hover:text-error-600 hover:bg-error-50 p-1.5 rounded-lg transition-all"
@@ -424,6 +482,11 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-700 leading-relaxed">
                         "{comment.text}"
                       </p>
+                      {!comment.keyword && (
+                        <p className="text-xs text-gray-400 mt-2 italic">
+                          Not linked to any keyword
+                        </p>
+                      )}
                     </Card>
                   ))}
                 </div>

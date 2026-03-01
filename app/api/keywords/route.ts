@@ -32,6 +32,7 @@ export async function POST(req: Request) {
         
         // Handle both 'keyword' and 'term' from frontend
         const keywordText = body.keyword || body.term;
+        const targetReach = body.targetReach || 1000; // Default to 1000 if not provided
         
         if (!keywordText) {
             return NextResponse.json({ error: 'Keyword text is required' }, { status: 400 });
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
         
         const newKeyword = await prisma.keyword.create({
             data: { 
-                keyword: keywordText, 
+                keyword: keywordText,
+                targetReach: parseInt(targetReach.toString()),
                 userId 
             }
         });

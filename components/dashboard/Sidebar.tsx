@@ -28,11 +28,11 @@ const navItems: NavItem[] = [
 
 export default function Sidebar({ activeTab, onTabChange, systemActive }: SidebarProps) {
   return (
-    <div className=\"w-64 bg-gray-900 border-r border-gray-800 flex flex-col shadow-sm\">
+    <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shadow-sm">
       {/* Logo Section */}
-      <div className=\"p-6 border-b border-gray-800\">
-        <Link href=\"/\" className=\"group\">
-          <NexoraLogo size=\"lg\" showText={true} className=\"text-white\" />
+      <div className="p-6 border-b border-gray-800">
+        <Link href="/" className="group">
+          <NexoraLogo size="lg" showText={true} className="text-white" />
         </Link>
       </div>
 
@@ -60,16 +60,16 @@ export default function Sidebar({ activeTab, onTabChange, systemActive }: Sideba
       </div>
 
       {/* User Profile Section */}
-      <div className=\"p-4 border-t border-gray-800\">
-        <div className=\"flex items-center gap-3 p-3 rounded-2xl bg-gray-800 border border-gray-700\">
+      <div className="p-4 border-t border-gray-800">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-gray-800 border border-gray-700">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
             ME
           </div>
-          <div className=\"flex-1 min-w-0\">
-            <p className=\"text-sm font-bold text-white truncate\">Pro Account</p>
-            <div className=\"flex items-center gap-1.5 mt-0.5\">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white truncate">Pro Account</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
               <div className={`w-1.5 h-1.5 rounded-full ${systemActive ? 'bg-success-500' : 'bg-gray-400'}`} />
-              <p className=\"text-xs font-medium text-gray-400\">
+              <p className="text-xs font-medium text-gray-400">
                 Agent: {systemActive ? 'Active' : 'Off'}
               </p>
             </div>
