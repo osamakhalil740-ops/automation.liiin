@@ -18,6 +18,7 @@ import Chart from '@/components/dashboard/Chart';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input, { TextArea } from '@/components/ui/Input';
+import { Spinner } from '@/components/ui/Spinner';
 import Badge from '@/components/ui/Badge';
 
 export default function Dashboard() {
@@ -429,6 +430,19 @@ export default function Dashboard() {
               )}
             </div>
           </Card>
+        );
+      case 'cookie-helper':
+        // Redirect to dedicated cookie helper page
+        if (typeof window !== 'undefined') {
+          window.location.href = '/cookie-helper';
+        }
+        return (
+          <div className="flex items-center justify-center h-96">
+            <div className="text-center">
+              <Spinner size="lg" />
+              <p className="mt-4 text-gray-600">Redirecting to Cookie Helper...</p>
+            </div>
+          </div>
         );
       case 'autoposts':
         return (
