@@ -122,34 +122,34 @@ export default function CookieHelperPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 p-6 md:p-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-3">
             <span className="text-4xl">🍪</span>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-white">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
               LinkedIn Cookie Helper
             </h1>
           </div>
-          <p className="text-gray-400 text-lg">
+          <p className="text-gray-700 text-lg font-medium">
             Follow these simple steps to get your LinkedIn session cookie
           </p>
         </div>
 
         {/* Why do we need this? */}
-        <Card className="mb-8 bg-blue-500/10 border border-blue-500/30">
+        <Card className="mb-8 bg-blue-50 border-2 border-blue-200">
           <div className="p-6">
             <div className="flex items-start gap-3">
               <span className="text-2xl">💡</span>
               <div>
-                <h3 className="text-xl font-bold text-blue-400 mb-2">Why do we need your cookie?</h3>
-                <p className="text-gray-300 leading-relaxed">
+                <h3 className="text-xl font-bold text-blue-900 mb-2">Why do we need your cookie?</h3>
+                <p className="text-gray-800 leading-relaxed font-medium">
                   The LinkedIn cookie allows our automation to act on your behalf. It's like giving the 
                   automation a temporary "key" to access LinkedIn as you. This is safe and standard practice 
                   for browser automation tools.
                 </p>
-                <div className="mt-4 flex items-center gap-2">
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
                   <Badge variant="success">✓ Safe</Badge>
                   <Badge variant="success">✓ Encrypted</Badge>
                   <Badge variant="success">✓ Never Shared</Badge>
@@ -166,8 +166,8 @@ export default function CookieHelperPage() {
               key={step.number}
               className={`transition-all cursor-pointer ${
                 currentStep === step.number
-                  ? 'bg-primary-500/20 border-primary-500/50 ring-2 ring-primary-500/30'
-                  : 'bg-gray-800/50 border-gray-700 hover:bg-gray-800/70'
+                  ? 'bg-primary-50 border-2 border-primary-500 shadow-lg'
+                  : 'bg-white border-2 border-gray-200 hover:border-gray-300 hover:shadow-md'
               }`}
               onClick={() => setCurrentStep(step.number)}
             >
@@ -175,10 +175,10 @@ export default function CookieHelperPage() {
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
                     <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold ${
+                      className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold shadow-md ${
                         currentStep === step.number
                           ? 'bg-primary-500 text-white'
-                          : 'bg-gray-700 text-gray-400'
+                          : 'bg-gray-200 text-gray-600'
                       }`}
                     >
                       {step.number}
@@ -187,17 +187,17 @@ export default function CookieHelperPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-3xl">{step.icon}</span>
-                      <h3 className="text-xl font-bold text-white">{step.title}</h3>
+                      <h3 className="text-xl font-bold text-gray-900">{step.title}</h3>
                     </div>
-                    <p className="text-gray-300 text-lg mb-3">{step.description}</p>
+                    <p className="text-gray-700 text-base mb-3 font-medium leading-relaxed">{step.description}</p>
                     
                     {step.tips && currentStep === step.number && (
-                      <div className="mt-4 bg-gray-900/50 rounded-lg p-4 border border-gray-700">
-                        <p className="text-sm font-semibold text-primary-400 mb-2">💡 Tips:</p>
-                        <ul className="space-y-1">
+                      <div className="mt-4 bg-amber-50 rounded-lg p-4 border-2 border-amber-200">
+                        <p className="text-sm font-bold text-amber-900 mb-2">💡 Tips:</p>
+                        <ul className="space-y-2">
                           {step.tips.map((tip, index) => (
-                            <li key={index} className="text-sm text-gray-400 flex items-start gap-2">
-                              <span className="text-primary-500 mt-0.5">•</span>
+                            <li key={index} className="text-sm text-gray-800 flex items-start gap-2 font-medium">
+                              <span className="text-amber-600 mt-0.5 font-bold">•</span>
                               <span>{tip}</span>
                             </li>
                           ))}
@@ -212,16 +212,16 @@ export default function CookieHelperPage() {
         </div>
 
         {/* Cookie Input Section */}
-        <Card className="bg-gray-800/80 border-gray-700">
+        <Card className="bg-white border-2 border-gray-300 shadow-lg">
           <div className="p-8">
-            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span>📝</span>
               Paste Your Cookie Here
             </h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-bold text-gray-800 mb-2">
                   LinkedIn Cookie (li_at value)
                 </label>
                 <Input
@@ -232,30 +232,30 @@ export default function CookieHelperPage() {
                     setCookie(e.target.value);
                     setValidationResult(null);
                   }}
-                  className="font-mono text-sm"
+                  className="font-mono text-sm border-2 border-gray-300 focus:border-primary-500"
                 />
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-gray-600 mt-2 font-medium">
                   The cookie should be a long string like: AQEDATdM8TwFfr0...
                 </p>
               </div>
 
               {/* Validation Result */}
               {validationResult === 'success' && (
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-green-400">
+                <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-800">
                     <span className="text-xl">✅</span>
-                    <span className="font-semibold">Cookie looks valid!</span>
+                    <span className="font-bold">Cookie looks valid!</span>
                   </div>
                 </div>
               )}
 
               {validationResult === 'error' && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-red-400">
+                <div className="bg-red-50 border-2 border-red-400 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-red-800">
                     <span className="text-xl">❌</span>
-                    <span className="font-semibold">Invalid cookie format</span>
+                    <span className="font-bold">Invalid cookie format</span>
                   </div>
-                  <p className="text-sm text-red-300 mt-2">
+                  <p className="text-sm text-red-700 mt-2 font-medium">
                     Please make sure you copied the entire li_at cookie value
                   </p>
                 </div>
@@ -300,17 +300,29 @@ export default function CookieHelperPage() {
         </Card>
 
         {/* Security Notice */}
-        <Card className="mt-6 bg-yellow-500/10 border border-yellow-500/30">
+        <Card className="mt-6 bg-amber-50 border-2 border-amber-300">
           <div className="p-6">
             <div className="flex items-start gap-3">
               <span className="text-2xl">🔒</span>
               <div>
-                <h3 className="text-lg font-bold text-yellow-400 mb-2">Security Notice</h3>
-                <ul className="text-gray-300 space-y-1 text-sm">
-                  <li>• Your cookie is encrypted before being stored in our database</li>
-                  <li>• Never share your cookie with anyone else</li>
-                  <li>• If you log out of LinkedIn, you'll need to get a new cookie</li>
-                  <li>• The cookie expires periodically - update it if automation stops working</li>
+                <h3 className="text-lg font-bold text-amber-900 mb-2">Security Notice</h3>
+                <ul className="text-gray-800 space-y-2 text-sm font-medium">
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 font-bold">•</span>
+                    <span>Your cookie is encrypted before being stored in our database</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 font-bold">•</span>
+                    <span>Never share your cookie with anyone else</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 font-bold">•</span>
+                    <span>If you log out of LinkedIn, you'll need to get a new cookie</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 font-bold">•</span>
+                    <span>The cookie expires periodically - update it if automation stops working</span>
+                  </li>
                 </ul>
               </div>
             </div>
