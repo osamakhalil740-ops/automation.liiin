@@ -132,13 +132,13 @@ async function extractPostData(postElement: any): Promise<PostData | null> {
 }
 
 /**
- * Perform deep scrolling to load multiple posts
+ * Perform smooth, human-like scrolling to load multiple posts
  */
-async function scrollAndCollectPosts(page: Page, maxScrolls: number = 8): Promise<PostData[]> {
+async function scrollAndCollectPosts(page: Page, maxScrolls: number = 10): Promise<PostData[]> {
     const allPosts: PostData[] = [];
     const seenUrls = new Set<string>();
 
-    console.log(`   📜 Starting deep scroll (${maxScrolls} scrolls)...`);
+    console.log(`   📜 Starting smooth scroll (${maxScrolls} scrolls)...`);
 
     for (let i = 0; i < maxScrolls; i++) {
         // Get current posts
@@ -156,10 +156,20 @@ async function scrollAndCollectPosts(page: Page, maxScrolls: number = 8): Promis
             }
         }
 
-        // Scroll down to load more
+        // Human-like smooth scrolling with variable speed
         if (i < maxScrolls - 1) {
-            await page.mouse.wheel(0, 1200);
-            await sleep(2000 + Math.random() * 1000);
+            // Smooth scroll in smaller increments (simulates natural scrolling)
+            const scrollDistance = 800 + Math.random() * 600; // 800-1400px
+            const scrollSteps = 8 + Math.floor(Math.random() * 5); // 8-12 steps
+            const stepSize = scrollDistance / scrollSteps;
+            
+            for (let step = 0; step < scrollSteps; step++) {
+                await page.mouse.wheel(0, stepSize);
+                await sleep(30 + Math.random() * 40); // 30-70ms per step
+            }
+            
+            // Pause to simulate reading (random between 1.5-3 seconds)
+            await sleep(1500 + Math.random() * 1500);
         }
     }
 
@@ -386,7 +396,7 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
             }
 
             // STEP 7: Scroll and collect posts
-            const allPosts = await scrollAndCollectPosts(page, 8);
+            const allPosts = await scrollAndCollectPosts(page, 10);
 
             if (allPosts.length === 0) {
                 console.log(`   ❌ [SCAN] No posts collected after scrolling`);
@@ -410,17 +420,26 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
 
             console.log(`   ✅ [FILTER] Found ${matchingPosts.length} posts matching criteria`);
 
-            if (matchingPosts.length === 0) {
-                console.log(`   ⚠️  [FILTER] No suitable posts found for "${keyword.keyword}"`);
-                await logAction(userId, `Scanned keyword "${keyword.keyword}" - no suitable posts (${allPosts.length} total)`, searchUrl);
-                continue; // Move to next keyword
+            // STEP 9: Select best post (closest to target reach)
+            // IMPORTANT: Always select a post, even if none match criteria exactly
+            let postsToConsider: PostData[];
+            let selectionMode: string;
+
+            if (matchingPosts.length > 0) {
+                // Use posts that match the criteria
+                postsToConsider = matchingPosts;
+                selectionMode = 'exact criteria match';
+            } else {
+                // No exact matches - use ALL posts and find closest to target
+                console.log(`   ⚠️  [FILTER] No exact matches - selecting closest match from all ${allPosts.length} posts`);
+                postsToConsider = allPosts;
+                selectionMode = 'closest match (relaxed criteria)';
             }
 
-            // STEP 9: Select best post (closest to target reach)
             let bestPost: PostData | null = null;
             let bestDiff = Infinity;
 
-            for (const post of matchingPosts) {
+            for (const post of postsToConsider) {
                 const diff = Math.abs(post.likes - targetReach);
                 if (diff < bestDiff) {
                     bestDiff = diff;
@@ -429,11 +448,13 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
             }
 
             if (!bestPost) {
-                console.log(`   ❌ [SELECT] Could not select best post`);
+                console.log(`   ❌ [SELECT] Could not select any post (unexpected error)`);
                 continue;
             }
 
-            console.log(`   ✅ [SELECT] Selected post: ${bestPost.likes} likes, ${bestPost.comments} comments (diff from target: ${bestDiff})`);
+            console.log(`   ✅ [SELECT] Selected post: ${bestPost.likes} likes, ${bestPost.comments} comments`);
+            console.log(`      • Selection mode: ${selectionMode}`);
+            console.log(`      • Distance from target (${targetReach}): ${bestDiff} likes`);
 
             // STEP 10: Select comment (keyword-specific or general)
             const availableComments = keyword.comments.length > 0 
