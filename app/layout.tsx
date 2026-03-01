@@ -1,6 +1,5 @@
 ﻿import './globals.css';
 import { ToastProvider } from '@/components/ui/Toast';
-import { Providers } from './providers';
 
 export const metadata = {
   title: 'Nexora – Your AI LinkedIn Presence',
@@ -18,11 +17,9 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body>
-        <Providers>
-          <div className="absolute inset-0 bg-grid-pattern -z-10 pointer-events-none opacity-50"></div>
-          {children}
-          <ToastProvider />
-        </Providers>
+        <div className="absolute inset-0 bg-grid-pattern -z-10 pointer-events-none opacity-50"></div>
+        {children}
+        <ToastProvider />
       </body>
     </html>
   );
