@@ -11,9 +11,9 @@ interface HeaderProps {
 
 export default function Header({ title, sessionConnected }: HeaderProps) {
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 md:px-8 py-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4 sticky top-0 z-10">
+    <header className="bg-gray-900/95 backdrop-blur-md border-b border-gray-800 px-6 md:px-8 py-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4 sticky top-0 z-10">
       {/* Page Title */}
-      <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 capitalize tracking-tight">
+      <h1 className="text-2xl md:text-3xl font-extrabold text-white capitalize tracking-tight">
         {title.replace('-', ' ')}
       </h1>
 

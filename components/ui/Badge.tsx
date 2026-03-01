@@ -23,7 +23,7 @@ export default function Badge({
   // Variant styles (background + text color)
   const variantStyles = {
     success: 'bg-success-100 text-success-700',
-    warning: 'bg-warning-100 text-warning-700',
+    warning: 'bg-warning-200 text-warning-900 border border-warning-500/30',
     error: 'bg-error-100 text-error-700',
     info: 'bg-info-100 text-info-700',
     neutral: 'bg-gray-100 text-gray-700',

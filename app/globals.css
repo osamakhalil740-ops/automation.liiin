@@ -86,8 +86,12 @@
   /* Warning */
   --color-warning-50: #fffbeb;
   --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
   --color-warning-500: #f59e0b;
   --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
   
   /* Error */
   --color-error-50: #fef2f2;
