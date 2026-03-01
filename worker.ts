@@ -1,12 +1,29 @@
 /**
- * NEXORA LinkedIn Automation Worker - Complete Implementation
- * Implements proper keyword loop, reach targeting, and comment assignment
+ * NEXORA LinkedIn Automation Worker - COMPLETELY RESTRUCTURED
+ * 
+ * This worker implements the CORRECT automation workflow:
+ * 1. Fetch ALL active keywords
+ * 2. Loop through EACH keyword sequentially
+ * 3. For each keyword:
+ *    - Search LinkedIn
+ *    - Scroll deeply to load sufficient posts
+ *    - Parse and filter posts by reach criteria
+ *    - Select matching post
+ *    - Choose keyword-specific comment
+ *    - Post comment
+ *    - Log action
+ * 4. Move to next keyword and repeat
+ * 5. Respect rate limits
  */
 
-import { chromium } from 'playwright';
+import { chromium, Browser, Page } from 'playwright';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -19,42 +36,268 @@ async function randomDelay(minMins: number, maxMins: number) {
     await sleep(ms);
 }
 
-async function logAction(userId: string, description: string, status: string) {
+/**
+ * Log action to database using correct Log model
+ */
+async function logAction(userId: string, action: string, postUrl: string, comment?: string) {
     try {
-        await prisma.activityFeed.create({
-            data: { userId, description, status }
+        await prisma.log.create({
+            data: { 
+                userId, 
+                action, 
+                postUrl,
+                comment: comment || null
+            }
         });
+        console.log(`   📝 [LOG] ${action}`);
     } catch (error) {
-        console.error('Log error:', error);
+        console.error('   ⚠️  Log error:', error);
     }
 }
+
+// ============================================================================
+// POST EXTRACTION & PARSING
+// ============================================================================
+
+interface PostData {
+    element: any;
+    likes: number;
+    comments: number;
+    postUrl: string;
+}
+
+/**
+ * Extract post metrics with multiple selector fallbacks
+ */
+async function extractPostData(postElement: any): Promise<PostData | null> {
+    try {
+        // Try multiple selectors for likes
+        let likesText = '0';
+        const likeSelectors = [
+            '.social-details-social-counts__reactions-count',
+            '[aria-label*="reaction"]',
+            '.social-details-social-counts__reactions',
+            'button[aria-label*="Like"]'
+        ];
+        
+        for (const selector of likeSelectors) {
+            try {
+                likesText = await postElement.$eval(selector, (el: any) => el.innerText || el.getAttribute('aria-label') || '0');
+                if (likesText && likesText !== '0') break;
+            } catch (e) {
+                continue;
+            }
+        }
+
+        // Try multiple selectors for comments
+        let commentsText = '0';
+        const commentSelectors = [
+            '.social-details-social-counts__comments',
+            '[aria-label*="comment"]',
+            'button[aria-label*="Comment"]'
+        ];
+        
+        for (const selector of commentSelectors) {
+            try {
+                commentsText = await postElement.$eval(selector, (el: any) => el.innerText || el.getAttribute('aria-label') || '0');
+                if (commentsText && commentsText !== '0') break;
+            } catch (e) {
+                continue;
+            }
+        }
+
+        // Extract post URL
+        let postUrl = 'unknown';
+        try {
+            const permalink = await postElement.$('a[href*="/feed/update/"]');
+            if (permalink) {
+                postUrl = await permalink.getAttribute('href') || 'unknown';
+            }
+        } catch (e) {
+            // URL extraction failed, continue anyway
+        }
+
+        const likes = parseInt(likesText.replace(/[^0-9]/g, '')) || 0;
+        const comments = parseInt(commentsText.replace(/[^0-9]/g, '')) || 0;
+
+        return {
+            element: postElement,
+            likes,
+            comments,
+            postUrl
+        };
+    } catch (error) {
+        return null;
+    }
+}
+
+/**
+ * Perform deep scrolling to load multiple posts
+ */
+async function scrollAndCollectPosts(page: Page, maxScrolls: number = 8): Promise<PostData[]> {
+    const allPosts: PostData[] = [];
+    const seenUrls = new Set<string>();
+
+    console.log(`   📜 Starting deep scroll (${maxScrolls} scrolls)...`);
+
+    for (let i = 0; i < maxScrolls; i++) {
+        // Get current posts
+        const postElements = await page.$$('.feed-shared-update-v2, .feed-shared-update-v2__description-wrapper').catch(() => []);
+        
+        console.log(`   📄 Scroll ${i + 1}/${maxScrolls}: Found ${postElements.length} post elements`);
+
+        // Extract data from each post
+        for (const postEl of postElements) {
+            const postData = await extractPostData(postEl);
+            if (postData && !seenUrls.has(postData.postUrl)) {
+                seenUrls.add(postData.postUrl);
+                allPosts.push(postData);
+                console.log(`      • Post: ${postData.likes} likes, ${postData.comments} comments`);
+            }
+        }
+
+        // Scroll down to load more
+        if (i < maxScrolls - 1) {
+            await page.mouse.wheel(0, 1200);
+            await sleep(2000 + Math.random() * 1000);
+        }
+    }
+
+    console.log(`   ✅ Collected ${allPosts.length} unique posts`);
+    return allPosts;
+}
+
+// ============================================================================
+// COMMENT POSTING
+// ============================================================================
+
+/**
+ * Post a comment on a LinkedIn post
+ */
+async function postComment(postElement: any, commentText: string): Promise<boolean> {
+    try {
+        console.log(`   💬 Attempting to post comment...`);
+
+        // Step 1: Find and click comment button
+        const commentBtnSelectors = [
+            'button[aria-label*="Comment"]',
+            '.comment-button',
+            'button.comment',
+            '[data-control-name="comment"]'
+        ];
+
+        let commentBtn = null;
+        for (const selector of commentBtnSelectors) {
+            commentBtn = await postElement.$(selector).catch(() => null);
+            if (commentBtn) break;
+        }
+
+        if (!commentBtn) {
+            console.log(`   ❌ Comment button not found`);
+            return false;
+        }
+
+        await commentBtn.scrollIntoViewIfNeeded();
+        await sleep(500);
+        await commentBtn.hover();
+        await sleep(300 + Math.random() * 300);
+        await commentBtn.click();
+        await sleep(2000);
+
+        // Step 2: Find comment editor
+        const editorSelectors = [
+            '.ql-editor[contenteditable="true"]',
+            '[contenteditable="true"].ql-editor',
+            '.comments-comment-box__text-editor',
+            'div[role="textbox"]'
+        ];
+
+        let editor = null;
+        for (const selector of editorSelectors) {
+            editor = await postElement.$(selector).catch(() => null);
+            if (editor) break;
+        }
+
+        if (!editor) {
+            console.log(`   ❌ Comment editor not found`);
+            return false;
+        }
+
+        // Step 3: Type comment with human-like delay
+        await editor.click();
+        await sleep(500);
+        await editor.type(commentText, { delay: 60 + Math.random() * 40 });
+        await sleep(1500);
+
+        // Step 4: Find and click submit button
+        const submitSelectors = [
+            '.comments-comment-box__submit-button--cr',
+            '.comments-comment-box__submit-button',
+            'button[type="submit"]',
+            'button.comments-comment-box-comment__button'
+        ];
+
+        let submitBtn = null;
+        for (const selector of submitSelectors) {
+            submitBtn = await postElement.$(selector).catch(() => null);
+            if (submitBtn) {
+                const isEnabled = await submitBtn.isEnabled().catch(() => false);
+                if (isEnabled) break;
+            }
+        }
+
+        if (!submitBtn) {
+            console.log(`   ❌ Submit button not found or disabled`);
+            return false;
+        }
+
+        await submitBtn.hover();
+        await sleep(500 + Math.random() * 500);
+        await submitBtn.click();
+        await sleep(3000);
+
+        console.log(`   ✅ Comment posted successfully!`);
+        return true;
+
+    } catch (error: any) {
+        console.log(`   ❌ Comment posting error: ${error.message}`);
+        return false;
+    }
+}
+
+// ============================================================================
+// MAIN PIPELINE
+// ============================================================================
 
 async function runPipelineForUser(userId: string, sessionCookie: string, settings: any) {
     console.log(`\n========================================`);
     console.log(`👤 Processing User: ${userId.slice(0, 8)}...`);
     console.log(`========================================`);
 
-    // 1. Check daily limit
+    // STEP 1: Check daily limit using Log model
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const commentsToday = await prisma.activityFeed.count({
+    const commentsToday = await prisma.log.count({
         where: {
             userId,
-            status: 'Success',
-            description: { contains: 'Commented on post' },
-            createdAt: { gte: today }
+            action: { contains: 'Commented on post' },
+            timestamp: { gte: today }
         }
     });
 
+    console.log(`   📊 Comments posted today: ${commentsToday}/${settings.maxCommentsPerDay}`);
+
     if (commentsToday >= settings.maxCommentsPerDay) {
-        console.log(`   ⚠️  Daily limit reached (${commentsToday}/${settings.maxCommentsPerDay}). Skipping.`);
+        console.log(`   ⚠️  Daily limit reached. Skipping user.`);
+        await logAction(userId, 'Daily limit reached', 'N/A');
         return;
     }
 
-    // 2. Fetch keywords WITH their comments
+    // STEP 2: Fetch ALL active keywords WITH their comments
     const keywords = await prisma.keyword.findMany({
         where: { userId, active: true },
-        include: { comments: true }
+        include: { comments: true },
+        orderBy: { createdAt: 'asc' }
     });
 
     const generalComments = await prisma.comment.findMany({
@@ -62,18 +305,27 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
     });
 
     if (keywords.length === 0) {
-        console.log(`   ⚠️  No keywords found. Skipping user.`);
+        console.log(`   ⚠️  No active keywords found. Skipping user.`);
+        await logAction(userId, 'No keywords configured', 'N/A');
         return;
     }
 
-    console.log(`   📋 Found ${keywords.length} active keywords`);
-    console.log(`   💬 General comments available: ${generalComments.length}`);
+    console.log(`   📋 Active keywords: ${keywords.length}`);
+    console.log(`   💬 General comments pool: ${generalComments.length}`);
+    keywords.forEach((kw, idx) => {
+        console.log(`      ${idx + 1}. "${kw.keyword}" (${kw.comments.length} specific comments)`);
+    });
 
-    // 3. Launch browser
-    console.log(`   🌐 Launching browser...`);
-    const browser = await chromium.launch({ headless: false });
+    // STEP 3: Launch browser
+    console.log(`\n   🌐 Launching browser...`);
+    const browser = await chromium.launch({ 
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    
     const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1920, height: 1080 }
     });
 
     await context.addCookies([{
@@ -91,172 +343,188 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
     try {
         let totalCommentsPosted = 0;
 
-        // 4. LOOP THROUGH ALL KEYWORDS
+        // STEP 4: LOOP THROUGH ALL KEYWORDS
         for (let keywordIndex = 0; keywordIndex < keywords.length; keywordIndex++) {
             const keyword = keywords[keywordIndex];
             const targetReach = keyword.targetReach || 1000;
 
-            console.log(`\n   [${keywordIndex + 1}/${keywords.length}] 🔍 Keyword: "${keyword.keyword}"`);
+            console.log(`\n   ╔════════════════════════════════════════════════════════════╗`);
+            console.log(`   ║ [${keywordIndex + 1}/${keywords.length}] Processing: "${keyword.keyword}"`);
+            console.log(`   ╚════════════════════════════════════════════════════════════╝`);
             console.log(`   🎯 Target reach: ${targetReach} likes`);
-            console.log(`   💬 Linked comments: ${keyword.comments.length}`);
+            console.log(`   💬 Keyword-specific comments: ${keyword.comments.length}`);
+            console.log(`   📈 Historical matches: ${keyword.matches}`);
 
-            // Check daily limit
+            // Check if we've hit daily limit
             if (totalCommentsPosted >= settings.maxCommentsPerDay) {
-                console.log(`   ⚠️  Daily limit reached. Stopping.`);
+                console.log(`   ⚠️  Daily limit reached (${totalCommentsPosted}/${settings.maxCommentsPerDay}). Stopping keyword loop.`);
                 break;
             }
 
-            // 5. Search LinkedIn
+            // STEP 5: Navigate to LinkedIn search
             const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword.keyword)}&sortBy=date_posted`;
-            console.log(`   🔎 Searching LinkedIn...`);
-            await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await sleep(3000);
-
+            console.log(`   🔎 [SEARCH] Navigating to LinkedIn search...`);
+            
             try {
-                await page.waitForSelector('.feed-shared-update-v2', { timeout: 10000 });
-
-                let bestPost: any = null;
-                let bestPostReach = 0;
-                let bestPostDiff = Infinity;
-
-                // 6. SCROLL AND ANALYZE POSTS
-                console.log(`   📜 Scrolling to find posts matching target reach...`);
-                
-                for (let scrollAttempt = 0; scrollAttempt < 3; scrollAttempt++) {
-                    const posts = await page.$$('.feed-shared-update-v2');
-                    console.log(`   📄 Scroll ${scrollAttempt + 1}/3: Found ${posts.length} posts`);
-
-                    for (const post of posts) {
-                        const likesText = await post.$eval('.social-details-social-counts__reactions-count', el => (el as HTMLElement).innerText).catch(() => '0');
-                        const commentsText = await post.$eval('.social-details-social-counts__comments', el => (el as HTMLElement).innerText).catch(() => '0');
-
-                        const likes = parseInt(likesText.replace(/[^0-9]/g, '')) || 0;
-                        const totalComments = parseInt(commentsText.replace(/[^0-9]/g, '')) || 0;
-
-                        // 7. CHECK REACH CRITERIA
-                        if (likes >= settings.minLikes && likes <= settings.maxLikes &&
-                            totalComments >= settings.minComments && totalComments <= settings.maxComments) {
-                            
-                            const diff = Math.abs(likes - targetReach);
-                            console.log(`   📊 Post found: ${likes} likes, ${totalComments} comments (diff: ${diff})`);
-
-                            // Find closest match to target reach
-                            const tolerance = targetReach * 0.3; // 30% tolerance
-                            if (diff <= tolerance && diff < bestPostDiff) {
-                                bestPost = post;
-                                bestPostReach = likes;
-                                bestPostDiff = diff;
-                                console.log(`   ✨ New best match: ${likes} likes (target: ${targetReach})`);
-                            }
-                        }
-                    }
-
-                    // Scroll for more posts
-                    if (scrollAttempt < 2) {
-                        await page.mouse.wheel(0, 800);
-                        await sleep(2000);
-                    }
-                }
-
-                // 8. POST COMMENT IF MATCH FOUND
-                if (bestPost && bestPostReach > 0) {
-                    console.log(`   🎯 Selected post: ${bestPostReach} likes (target: ${targetReach})`);
-
-                    // 9. SELECT COMMENT (keyword-specific or general)
-                    const availableComments = keyword.comments.length > 0 
-                        ? keyword.comments 
-                        : generalComments;
-
-                    if (availableComments.length === 0) {
-                        console.log(`   ❌ No comments available for "${keyword.keyword}"`);
-                        continue;
-                    }
-
-                    const comment = availableComments[Math.floor(Math.random() * availableComments.length)];
-                    console.log(`   💬 Comment: "${comment.text.substring(0, 50)}..."`);
-                    console.log(`   🔗 Source: ${keyword.comments.length > 0 ? 'Keyword-specific' : 'General pool'}`);
-
-                    // 10. PERFORM COMMENTING
-                    try {
-                        const commentBtn = await bestPost.$('.comment-button');
-                        if (commentBtn) {
-                            await commentBtn.hover();
-                            await sleep(500 + Math.random() * 500);
-                            await commentBtn.click();
-                            await sleep(2000);
-
-                            const editor = await bestPost.$('.ql-editor');
-                            if (editor) {
-                                await editor.type(comment.text, { delay: 80 });
-                                await sleep(1500);
-
-                                let submitBtn = await bestPost.$('.comments-comment-box__submit-button--cr');
-                                if (!submitBtn) submitBtn = await bestPost.$('.comments-comment-box__submit-button');
-                                if (!submitBtn) submitBtn = await bestPost.$('button[type="submit"]');
-
-                                if (submitBtn) {
-                                    await submitBtn.hover();
-                                    await sleep(800);
-                                    await submitBtn.click();
-                                    await sleep(2000);
-
-                                    totalCommentsPosted++;
-                                    await logAction(userId, `✅ Commented on post (${bestPostReach} likes) for "${keyword.keyword}"`, 'Success');
-                                    console.log(`   ✅ Comment posted successfully! Total today: ${totalCommentsPosted}`);
-
-                                    // Update keyword matches
-                                    await prisma.keyword.update({
-                                        where: { id: keyword.id },
-                                        data: { matches: { increment: 1 } }
-                                    });
-
-                                    // Update comment usage
-                                    await prisma.comment.update({
-                                        where: { id: comment.id },
-                                        data: { timesUsed: { increment: 1 } }
-                                    });
-                                } else {
-                                    console.log(`   ❌ Submit button not found`);
-                                }
-                            }
-                        }
-                    } catch (err: any) {
-                        await logAction(userId, `Failed to comment: ${err.message}`, 'Failed');
-                        console.log(`   ❌ Error: ${err.message}`);
-                    }
-                } else {
-                    console.log(`   ⚠️  No posts found matching target reach ${targetReach}`);
-                    await logAction(userId, `No matches for "${keyword.keyword}" (target: ${targetReach})`, 'No matches');
-                }
-
-            } catch (e) {
-                console.log(`   ❌ No posts loaded for "${keyword.keyword}"`);
+                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                await sleep(3000);
+                console.log(`   ✅ [SEARCH] Page loaded`);
+            } catch (navError: any) {
+                console.log(`   ❌ [SEARCH] Navigation failed: ${navError.message}`);
+                await logAction(userId, `Search failed for "${keyword.keyword}": Navigation error`, searchUrl);
+                continue; // Move to next keyword
             }
 
-            // Wait between keywords
+            // STEP 6: Wait for posts to load
+            try {
+                await page.waitForSelector('.feed-shared-update-v2, .feed-shared-update-v2__description-wrapper', { timeout: 10000 });
+                console.log(`   ✅ [SCAN] Posts detected on page`);
+            } catch (e) {
+                console.log(`   ❌ [SCAN] No posts loaded for "${keyword.keyword}"`);
+                await logAction(userId, `No posts found for "${keyword.keyword}"`, searchUrl);
+                continue; // Move to next keyword
+            }
+
+            // STEP 7: Scroll and collect posts
+            const allPosts = await scrollAndCollectPosts(page, 8);
+
+            if (allPosts.length === 0) {
+                console.log(`   ❌ [SCAN] No posts collected after scrolling`);
+                await logAction(userId, `Scanned keyword "${keyword.keyword}" - no posts found`, searchUrl);
+                continue; // Move to next keyword
+            }
+
+            // STEP 8: Filter posts by reach criteria
+            console.log(`\n   🔍 [FILTER] Applying reach criteria:`);
+            console.log(`      • Min likes: ${settings.minLikes}`);
+            console.log(`      • Max likes: ${settings.maxLikes}`);
+            console.log(`      • Min comments: ${settings.minComments}`);
+            console.log(`      • Max comments: ${settings.maxComments}`);
+
+            const matchingPosts = allPosts.filter(post => {
+                return post.likes >= settings.minLikes && 
+                       post.likes <= settings.maxLikes &&
+                       post.comments >= settings.minComments && 
+                       post.comments <= settings.maxComments;
+            });
+
+            console.log(`   ✅ [FILTER] Found ${matchingPosts.length} posts matching criteria`);
+
+            if (matchingPosts.length === 0) {
+                console.log(`   ⚠️  [FILTER] No suitable posts found for "${keyword.keyword}"`);
+                await logAction(userId, `Scanned keyword "${keyword.keyword}" - no suitable posts (${allPosts.length} total)`, searchUrl);
+                continue; // Move to next keyword
+            }
+
+            // STEP 9: Select best post (closest to target reach)
+            let bestPost: PostData | null = null;
+            let bestDiff = Infinity;
+
+            for (const post of matchingPosts) {
+                const diff = Math.abs(post.likes - targetReach);
+                if (diff < bestDiff) {
+                    bestDiff = diff;
+                    bestPost = post;
+                }
+            }
+
+            if (!bestPost) {
+                console.log(`   ❌ [SELECT] Could not select best post`);
+                continue;
+            }
+
+            console.log(`   ✅ [SELECT] Selected post: ${bestPost.likes} likes, ${bestPost.comments} comments (diff from target: ${bestDiff})`);
+
+            // STEP 10: Select comment (keyword-specific or general)
+            const availableComments = keyword.comments.length > 0 
+                ? keyword.comments 
+                : generalComments;
+
+            if (availableComments.length === 0) {
+                console.log(`   ❌ [COMMENT] No comments available for "${keyword.keyword}"`);
+                await logAction(userId, `No comments configured for "${keyword.keyword}"`, bestPost.postUrl);
+                continue; // Move to next keyword
+            }
+
+            const selectedComment = availableComments[Math.floor(Math.random() * availableComments.length)];
+            const commentSource = keyword.comments.length > 0 ? 'Keyword-specific' : 'General pool';
+            
+            console.log(`   💬 [COMMENT] Selected from ${commentSource}:`);
+            console.log(`      "${selectedComment.text.substring(0, 60)}..."`);
+
+            // STEP 11: Post the comment
+            const success = await postComment(bestPost.element, selectedComment.text);
+
+            if (success) {
+                totalCommentsPosted++;
+                console.log(`   ✅ [SUCCESS] Comment posted! Total today: ${totalCommentsPosted}/${settings.maxCommentsPerDay}`);
+
+                // Log to database
+                await logAction(
+                    userId, 
+                    `Commented on post for "${keyword.keyword}" (${bestPost.likes} likes)`, 
+                    bestPost.postUrl,
+                    selectedComment.text
+                );
+
+                // Update keyword matches counter
+                await prisma.keyword.update({
+                    where: { id: keyword.id },
+                    data: { matches: { increment: 1 } }
+                });
+
+                // Update comment usage counter
+                await prisma.comment.update({
+                    where: { id: selectedComment.id },
+                    data: { timesUsed: { increment: 1 } }
+                });
+
+            } else {
+                console.log(`   ❌ [FAILED] Could not post comment`);
+                await logAction(userId, `Failed to comment on post for "${keyword.keyword}"`, bestPost.postUrl);
+            }
+
+            // STEP 12: Wait before next keyword (rate limiting)
             if (keywordIndex < keywords.length - 1) {
-                const waitTime = 3000 + Math.random() * 2000;
-                console.log(`   ⏳ Waiting ${(waitTime/1000).toFixed(1)}s before next keyword...`);
+                const waitTime = 3000 + Math.random() * 3000;
+                console.log(`   ⏳ Waiting ${(waitTime/1000).toFixed(1)}s before next keyword...\n`);
                 await sleep(waitTime);
             }
         }
 
-        console.log(`\n   📊 Summary: Posted ${totalCommentsPosted} comments across ${keywords.length} keywords`);
-        await logAction(userId, `Cycle completed: ${totalCommentsPosted} comments posted`, 'System');
+        // STEP 13: Summary
+        console.log(`\n   ╔════════════════════════════════════════════════════════════╗`);
+        console.log(`   ║ CYCLE COMPLETE                                             ║`);
+        console.log(`   ╚════════════════════════════════════════════════════════════╝`);
+        console.log(`   📊 Keywords processed: ${keywords.length}`);
+        console.log(`   ✅ Comments posted: ${totalCommentsPosted}`);
+        console.log(`   📈 Success rate: ${keywords.length > 0 ? ((totalCommentsPosted / keywords.length) * 100).toFixed(1) : 0}%`);
 
+        await logAction(userId, `Automation cycle completed: ${totalCommentsPosted} comments posted across ${keywords.length} keywords`, 'CYCLE_COMPLETE');
+
+    } catch (error: any) {
+        console.error(`   ❌ Critical error in pipeline: ${error.message}`);
+        await logAction(userId, `Pipeline error: ${error.message}`, 'ERROR');
+        throw error;
     } finally {
         await browser.close();
-        console.log(`   🔒 Browser closed`);
+        console.log(`   🔒 Browser closed\n`);
     }
 }
 
+// ============================================================================
+// ORCHESTRATOR
+// ============================================================================
+
 async function runOrchestrator() {
-    console.log('\n========================================');
-    console.log('  🚀 NEXORA Worker v3.0 Starting...');
-    console.log('========================================\n');
+    console.log('\n════════════════════════════════════════════════════════════');
+    console.log('  🚀 NEXORA LinkedIn Automation Worker v4.0');
+    console.log('  📅 ' + new Date().toLocaleString());
+    console.log('════════════════════════════════════════════════════════════\n');
 
     while (true) {
         try {
+            // Find all active users
             const activeSettings = await prisma.settings.findMany({
                 where: {
                     systemActive: true,
@@ -265,33 +533,49 @@ async function runOrchestrator() {
             });
 
             if (activeSettings.length === 0) {
-                console.log('⏳ No active users. Waiting 60s...');
+                console.log('⏳ No active users. Waiting 60 seconds...');
                 await sleep(60000);
                 continue;
             }
 
             console.log(`👥 Found ${activeSettings.length} active user(s)`);
 
+            // Process each user
             for (const userSettings of activeSettings) {
                 if (!userSettings.userId) continue;
+                
                 try {
-                    await runPipelineForUser(userSettings.userId, userSettings.linkedinSessionCookie, userSettings);
-                    await sleep(10000);
+                    await runPipelineForUser(
+                        userSettings.userId, 
+                        userSettings.linkedinSessionCookie, 
+                        userSettings
+                    );
+                    
+                    // Wait between users
+                    if (activeSettings.length > 1) {
+                        await sleep(10000);
+                    }
                 } catch (err: any) {
-                    console.error(`❌ Error for user: ${err.message}`);
-                    await logAction(userSettings.userId, `Worker error: ${err.message}`, 'Failed').catch(() => {});
+                    console.error(`❌ Error processing user ${userSettings.userId.slice(0, 8)}: ${err.message}`);
+                    await logAction(userSettings.userId, `Worker error: ${err.message}`, 'ERROR').catch(() => {});
                 }
             }
 
+            // Calculate next cycle delay
             const minDelay = Math.min(...activeSettings.map(s => s.minDelayMins));
             const maxDelay = Math.max(...activeSettings.map(s => s.maxDelayMins));
             await randomDelay(minDelay, maxDelay);
 
         } catch (error: any) {
-            console.error('❌ Fatal error:', error.message);
+            console.error('❌ Fatal orchestrator error:', error.message);
+            console.error(error.stack);
             await sleep(60000);
         }
     }
 }
 
-runOrchestrator();
+// Start the orchestrator
+runOrchestrator().catch(error => {
+    console.error('❌ Unhandled error:', error);
+    process.exit(1);
+});
