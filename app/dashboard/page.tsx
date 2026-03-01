@@ -10,6 +10,15 @@ import { useRouter } from 'next/navigation';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
+import Sidebar from '@/components/dashboard/Sidebar';
+import Header from '@/components/dashboard/Header';
+import StatCard from '@/components/dashboard/StatCard';
+import ActivityFeed from '@/components/dashboard/ActivityFeed';
+import Chart from '@/components/dashboard/Chart';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import Input, { TextArea } from '@/components/ui/Input';
+import Badge from '@/components/ui/Badge';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -73,9 +82,16 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    let interval = setInterval(fetchData, 5000); // refresh every 5s
-    fetchData();
-    return () => clearInterval(interval);
+    // Small delay on first load to ensure cookie is set
+    const initialTimeout = setTimeout(fetchData, 100);
+    
+    // Then poll every 5 seconds
+    const interval = setInterval(fetchData, 5000);
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
   }, [activeTab]);
 
   const toggleSystem = async () => {
@@ -161,138 +177,169 @@ export default function Dashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
+        // Mock chart data
+        const chartData = [
+          { name: 'Mon', value: 12 },
+          { name: 'Tue', value: 19 },
+          { name: 'Wed', value: 15 },
+          { name: 'Thu', value: 25 },
+          { name: 'Fri', value: 22 },
+          { name: 'Sat', value: 18 },
+          { name: 'Sun', value: 20 },
+        ];
+
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">Comments Today</p>
-                    <h3 className="text-3xl font-extrabold text-zinc-900 mt-1">{stats.commentsToday} <span className="text-gray-400 text-xl font-medium">/ {settings.maxCommentsPerDay || 50}</span></h3>
-                  </div>
-                  <div className="p-3 bg-orange-50 rounded-2xl text-[#FF6B35]">
-                    <MessageSquareText size={20} />
-                  </div>
-                </div>
-                <div className="mt-4 w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-[#FF6B35] h-2 rounded-full" style={{ width: `${Math.min(100, (stats.commentsToday / (settings.maxCommentsPerDay || 50)) * 100)}%` }}></div>
-                </div>
-              </div>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard
+                title="Comments Today"
+                value={stats.commentsToday}
+                maxValue={settings.maxCommentsPerDay || 50}
+                icon={<MessageSquareText className="w-5 h-5" />}
+                iconColor="primary"
+                showProgress
+                trend="+12%"
+                trendUp
+                delay={0}
+              />
 
-              <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">Posts Scanned</p>
-                    <h3 className="text-3xl font-extrabold text-zinc-900 mt-1">{stats.postsScanned}</h3>
-                  </div>
-                  <div className="p-3 bg-zinc-50 rounded-2xl text-zinc-800">
-                    <Search size={20} />
-                  </div>
-                </div>
-              </div>
+              <StatCard
+                title="Posts Scanned"
+                value={stats.postsScanned}
+                icon={<Search className="w-5 h-5" />}
+                iconColor="secondary"
+                delay={0.1}
+              />
 
-              <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50 md:col-span-2">
-                <div className="flex justify-between items-center h-full">
-                  <div>
-                    <p className="text-sm font-bold text-gray-500 uppercase tracking-tight">System Status</p>
-                    <h3 className="text-2xl font-extrabold text-zinc-900 mt-1">
-                      {systemActive ? 'Autopilot Active' : 'Standby Mode'}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {systemActive && <span className="relative flex h-4 w-4">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
-                    </span>}
-                    <button
-                      onClick={toggleSystem}
-                      className={`flex items-center justify-center px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-md ${systemActive
-                        ? 'bg-zinc-900 text-white hover:bg-zinc-800 shadow-zinc-900/20'
-                        : 'bg-[#FF6B35] text-white hover:bg-[#e5531d] shadow-orange-500/20'
-                        }`}
-                    >
-                      {systemActive ? (
-                        <><Pause size={16} className="mr-2" /> Pause Agent</>
-                      ) : (
-                        <><Play size={16} className="mr-2" /> Start Agent</>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+              <StatCard
+                title="Profile Views"
+                value={stats.profileViews || 0}
+                icon={<Users className="w-5 h-5" />}
+                iconColor="accent"
+                trend="+8%"
+                trendUp
+                delay={0.2}
+              />
 
-            <div className="grid grid-cols-1 gap-6">
-              <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50">
-                <h3 className="text-xl font-bold text-zinc-900 mb-6">Activity Stream</h3>
-                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4">
-                  {logs.length === 0 ? <p className="text-sm text-gray-500 font-medium">Agent is sleeping. Start the system to see activity.</p> : null}
-                  {logs.map((log) => (
-                    <div key={log.id} className="flex items-start bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                      <div className={`p-2 rounded-xl mr-4 flex-shrink-0 ${log.status === 'Success' ? 'bg-emerald-100 text-emerald-600' :
-                        log.status === 'Failed' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-                        }`}>
-                        {log.action.includes('Commented') ? <MessageSquareText size={16} /> : <Bot size={16} />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-zinc-900">{log.action}</p>
-                        <div className="flex items-center mt-1">
-                          <span className="text-xs font-semibold text-gray-500">{new Date(log.time).toLocaleTimeString()}</span>
-                          <span className="mx-2 text-gray-300">â€¢</span>
-                          <span className={`text-xs font-bold ${log.status === 'Success' ? 'text-emerald-600' :
-                            log.status === 'Failed' ? 'text-red-600' : 'text-orange-600'
-                            }`}>{log.status}</span>
-                        </div>
-                      </div>
+              <div className="md:col-span-1">
+                <Card hover>
+                  <div className="flex items-center justify-between h-full">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+                        System Status
+                      </p>
+                      <h3 className="text-xl font-extrabold text-gray-900">
+                        {systemActive ? 'Autopilot Active' : 'Standby Mode'}
+                      </h3>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex flex-col items-end gap-3">
+                      {systemActive && (
+                        <span className="relative flex h-4 w-4">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-4 w-4 bg-success-500"></span>
+                        </span>
+                      )}
+                      <Button
+                        onClick={toggleSystem}
+                        variant={systemActive ? 'secondary' : 'primary'}
+                        size="sm"
+                        leftIcon={systemActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      >
+                        {systemActive ? 'Pause' : 'Start'}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
               </div>
             </div>
+
+            {/* Chart */}
+            <Chart data={chartData} />
+
+            {/* Activity Feed */}
+            <ActivityFeed logs={logs} />
           </div>
         );
       case 'keywords':
         return (
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden">
-            <div className="p-8 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <div>
-                <h3 className="text-xl font-bold text-zinc-900">Target Keywords</h3>
-                <p className="text-sm font-medium text-gray-500 mt-1">Manage the phrases your AI agent scans for on LinkedIn.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newKeyword}
-                  onChange={e => setNewKeyword(e.target.value)}
-                  placeholder="E.g. #growthhacking"
-                  className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium"
-                />
-                <button onClick={addKeyword} className="flex items-center px-6 py-3 bg-[#FF6B35] text-white rounded-xl hover:bg-[#e5531d] shadow-md shadow-orange-500/20 transition-all text-sm font-bold">
-                  <Plus size={16} className="mr-1" /> Add
-                </button>
+          <Card>
+            <div className="p-6 md:p-8 border-b border-gray-100">
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Search className="w-5 h-5 text-primary-500" />
+                    Target Keywords
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Manage the phrases your AI agent scans for on LinkedIn
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    value={newKeyword}
+                    onChange={e => setNewKeyword(e.target.value)}
+                    placeholder="E.g. #growthhacking"
+                    className="min-w-[200px]"
+                  />
+                  <Button onClick={addKeyword} leftIcon={<Plus className="w-4 h-4" />}>
+                    Add
+                  </Button>
+                </div>
               </div>
             </div>
-            <div className="overflow-x-auto p-4">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider">Keyword</th>
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider">Matches</th>
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Keyword
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Matches
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500 text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {keywords.length === 0 ? (
-                    <tr><td colSpan={3} className="px-6 py-8 text-sm font-medium text-gray-500 text-center">Your agent has no targets. Add a keyword above.</td></tr>
+                    <tr>
+                      <td colSpan={3} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                            <Search className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <p className="text-sm font-semibold text-gray-900 mb-1">
+                            No keywords yet
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Add your first keyword above to start targeting posts
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : keywords.map((kw) => (
                     <tr key={kw.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-5 text-sm font-bold text-zinc-900">{kw.keyword}</td>
-                      <td className="px-6 py-5">
-                        <span className="bg-gray-100 text-gray-600 font-bold px-3 py-1 text-xs rounded-full">{kw.matches || 0} hits</span>
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {kw.keyword}
+                        </span>
                       </td>
-                      <td className="px-6 py-5 text-right">
-                        <button onClick={() => deleteKeyword(kw.id)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all">
-                          <Trash2 size={18} />
+                      <td className="px-6 py-4">
+                        <Badge variant="neutral" size="sm">
+                          {kw.matches || 0} hits
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => deleteKeyword(kw.id)}
+                          className="text-gray-400 hover:text-error-600 hover:bg-error-50 p-2 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
@@ -300,102 +347,187 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         );
       case 'comments':
         return (
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden">
-            <div className="p-8 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <div>
-                <h3 className="text-xl font-bold text-zinc-900">Comment Bank</h3>
-                <p className="text-sm font-medium text-gray-500 mt-1">Pre-written thoughts your agent will deploy.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newCommentCat}
-                  onChange={e => setNewCommentCat(e.target.value)}
-                  placeholder="Category"
-                  className="w-28 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium"
-                />
-                <input
-                  type="text"
-                  value={newCommentText}
-                  onChange={e => setNewCommentText(e.target.value)}
-                  placeholder="Type a thoughtful comment..."
-                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium min-w-[300px]"
-                />
-                <button onClick={addComment} className="flex items-center px-6 py-3 bg-[#FF6B35] text-white rounded-xl hover:bg-[#e5531d] shadow-md shadow-orange-500/20 transition-all text-sm font-bold">
-                  <Plus size={16} className="mr-1" /> Add
-                </button>
-              </div>
-            </div>
-            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {comments.length === 0 ? <p className="text-sm text-gray-500 font-medium">No comments in the bank.</p> : null}
-              {comments.map((comment) => (
-                <div key={comment.id} className="bg-gray-50 p-6 rounded-2xl border border-gray-100 hover:border-orange-200 transition-colors group">
-                  <div className="flex justify-between items-start mb-3">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
-                      {comment.category}
-                    </span>
-                    <button onClick={() => deleteComment(comment.id)} className="text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <p className="text-sm font-medium text-zinc-700 leading-relaxed">"{comment.text}"</p>
+          <Card>
+            <div className="p-6 md:p-8 border-b border-gray-100">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <MessageSquareText className="w-5 h-5 text-primary-500" />
+                    Comment Bank
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Pre-written thoughts your agent will deploy on LinkedIn
+                  </p>
                 </div>
-              ))}
+
+                {/* Add Comment Form */}
+                <div className="flex flex-col lg:flex-row items-start lg:items-end gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <Input
+                    label="Category"
+                    type="text"
+                    value={newCommentCat}
+                    onChange={e => setNewCommentCat(e.target.value)}
+                    placeholder="General"
+                    className="lg:w-40"
+                  />
+                  <TextArea
+                    label="Comment Text"
+                    value={newCommentText}
+                    onChange={e => setNewCommentText(e.target.value)}
+                    placeholder="Type a thoughtful comment..."
+                    rows={2}
+                    className="flex-1 min-w-[250px]"
+                    showCharCount
+                    maxLength={280}
+                  />
+                  <Button onClick={addComment} leftIcon={<Plus className="w-4 h-4" />} className="lg:mb-0">
+                    Add Comment
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
+
+            {/* Comments Grid */}
+            <div className="p-6 md:p-8">
+              {comments.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                    <MessageSquareText className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                    No comments yet
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Add your first comment template above
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {comments.map((comment) => (
+                    <Card key={comment.id} variant="default" hover className="group relative">
+                      <div className="flex justify-between items-start mb-3">
+                        <Badge variant="primary" size="sm">
+                          {comment.category}
+                        </Badge>
+                        <button
+                          onClick={() => deleteComment(comment.id)}
+                          className="text-gray-400 opacity-0 group-hover:opacity-100 hover:text-error-600 hover:bg-error-50 p-1.5 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        "{comment.text}"
+                      </p>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
         );
       case 'autoposts':
         return (
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden">
-            <div className="p-8 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-gradient-to-r from-blue-50 to-transparent">
-              <div>
-                <h3 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
-                  <Sparkles size={20} className="text-blue-500" /> AI Auto-Posts
-                </h3>
-                <p className="text-sm font-medium text-gray-500 mt-1">Generate thought leadership content on autopilot using Gemini.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newTopic}
-                  onChange={e => setNewTopic(e.target.value)}
-                  placeholder="E.g. The future of SaaS pricing..."
-                  className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium min-w-[300px]"
-                />
-                <button onClick={generateAutoPost} className="flex items-center px-6 py-3 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 shadow-md shadow-zinc-900/20 transition-all text-sm font-bold">
-                  <Bot size={16} className="mr-2 text-blue-400" /> Generate Post
-                </button>
+          <Card>
+            <div className="p-6 md:p-8 border-b border-gray-100 bg-gradient-to-r from-secondary-50 via-accent-50 to-transparent">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-secondary-600" />
+                    AI Auto-Posts
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Generate thought leadership content on autopilot using Gemini
+                  </p>
+                </div>
+
+                {/* Generate Form */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
+                  <Input
+                    label="Topic or Idea"
+                    type="text"
+                    value={newTopic}
+                    onChange={e => setNewTopic(e.target.value)}
+                    placeholder="E.g. The future of SaaS pricing..."
+                    className="flex-1 min-w-[300px]"
+                    leftIcon={<PenTool className="w-4 h-4" />}
+                  />
+                  <Button
+                    onClick={generateAutoPost}
+                    variant="secondary"
+                    leftIcon={<Bot className="w-4 h-4" />}
+                  >
+                    Generate Post
+                  </Button>
+                </div>
               </div>
             </div>
-            <div className="overflow-x-auto p-4">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider">Topic</th>
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider">Generated Content Preview</th>
-                    <th className="px-6 py-4 text-xs font-extrabold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Topic
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Content Preview
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-gray-500 text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {autoPosts.length === 0 ? (
-                    <tr><td colSpan={4} className="px-6 py-8 text-sm font-medium text-gray-500 text-center">No posts generated yet. Enter a topic to start.</td></tr>
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-4 rounded-full bg-gradient-to-br from-secondary-100 to-accent-100 flex items-center justify-center">
+                            <Sparkles className="w-8 h-8 text-secondary-600" />
+                          </div>
+                          <p className="text-sm font-semibold text-gray-900 mb-1">
+                            No posts generated yet
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Enter a topic above to let AI create your first post
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : autoPosts.map((post) => (
                     <tr key={post.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-5 text-sm font-bold text-zinc-900 w-1/5">{post.topic}</td>
-                      <td className="px-6 py-5 w-[15%]">
-                        <span className={`font-bold px-3 py-1 text-xs rounded-full ${post.status === 'Published' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {post.status}
+                      <td className="px-6 py-4 max-w-[200px]">
+                        <span className="text-sm font-semibold text-gray-900 line-clamp-2">
+                          {post.topic}
                         </span>
                       </td>
-                      <td className="px-6 py-5 text-sm text-gray-600 line-clamp-3 italic">"{post.content}"</td>
-                      <td className="px-6 py-5 text-right w-[10%]">
-                        <button onClick={() => deleteAutoPost(post.id)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all">
-                          <Trash2 size={18} />
+                      <td className="px-6 py-4">
+                        <Badge
+                          variant={post.status === 'Published' ? 'success' : 'info'}
+                          size="sm"
+                        >
+                          {post.status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 max-w-md">
+                        <p className="text-sm text-gray-600 line-clamp-2 italic">
+                          "{post.content}"
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => deleteAutoPost(post.id)}
+                          className="text-gray-400 hover:text-error-600 hover:bg-error-50 p-2 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
@@ -403,88 +535,156 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         );
       case 'settings':
         return (
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden max-w-4xl mx-auto">
-            <div className="p-8 border-b border-gray-100">
-              <h3 className="text-xl font-bold text-zinc-900">Agent Configuration</h3>
-              <p className="text-sm font-medium text-gray-500 mt-1">Fine-tune your autopilot's parameters and safety thresholds.</p>
-            </div>
-            <form onSubmit={saveSettings} className="p-8 space-y-8">
-
-              <div className="bg-zinc-900 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                <div className="absolute right-0 top-0 text-white/5 opacity-50 scale-150 -translate-y-1/4 translate-x-1/4">
-                  <Bot size={200} />
-                </div>
-                <h4 className="text-sm font-extrabold text-white mb-3 flex items-center gap-2 relative z-10">
-                  <AlertCircle size={16} className="text-[#FF6B35]" /> LinkedIn API Cookie
-                </h4>
-                <div className="relative z-10">
-                  <input
-                    type="password"
-                    name="linkedinSessionCookie"
-                    defaultValue={settings.linkedinSessionCookie}
-                    className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6B35] font-mono text-sm"
-                    placeholder="AQEDATX..."
-                  />
-                  <p className="text-xs font-medium text-zinc-400 mt-2">The `li_at` cookie required for the headless browser to bypass 2FA securely.</p>
-                </div>
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <div className="p-6 md:p-8 border-b border-gray-100">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-primary-500" />
+                  Agent Configuration
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Fine-tune your autopilot's parameters and safety thresholds
+                </p>
               </div>
+              <form onSubmit={saveSettings} className="p-6 md:p-8 space-y-8">
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h4 className="text-sm font-bold text-zinc-900 mb-4 uppercase tracking-tight">Rate Limits</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1">Max Comments / Day</label>
-                      <input type="number" name="maxCommentsPerDay" defaultValue={settings.maxCommentsPerDay ?? 50} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1">Max Profile Views / Day</label>
-                      <input type="number" name="maxProfileViewsPerDay" defaultValue={settings.maxProfileViewsPerDay ?? 100} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium font-mono" />
-                    </div>
+                {/* LinkedIn Cookie Section */}
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute right-0 top-0 text-white/5 opacity-50 scale-150 -translate-y-1/4 translate-x-1/4">
+                    <Bot size={200} />
+                  </div>
+                  <div className="relative z-10">
+                    <h4 className="text-sm font-extrabold text-white mb-3 flex items-center gap-2">
+                      <AlertCircle size={16} className="text-primary-500" />
+                      LinkedIn Session Cookie
+                    </h4>
+                    <input
+                      type="password"
+                      name="linkedinSessionCookie"
+                      defaultValue={settings.linkedinSessionCookie}
+                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 font-mono text-sm placeholder:text-gray-500"
+                      placeholder="AQEDATX..."
+                    />
+                    <p className="text-xs text-gray-400 mt-2">
+                      The <code className="px-1.5 py-0.5 bg-gray-800 rounded text-primary-400">li_at</code> cookie required for authentication
+                    </p>
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="text-sm font-bold text-zinc-900 mb-4 uppercase tracking-tight">Engagement Thresholds</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1">Minimum Likes to Comment</label>
-                      <input type="number" name="minLikes" defaultValue={settings.minLikes ?? 10} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1">Minimum Existing Comments</label>
-                      <input type="number" name="minComments" defaultValue={settings.minComments ?? 2} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium font-mono" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <hr className="border-gray-100" />
-
-              <div>
-                <h4 className="text-sm font-bold text-zinc-900 mb-4 uppercase tracking-tight">Human Emulation (Delays)</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Rate Limits & Engagement Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Rate Limits */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Min Delay (Mins)</label>
-                    <input type="number" name="minDelayMins" defaultValue={settings.minDelayMins ?? 15} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium font-mono" />
+                    <h4 className="text-xs font-bold text-gray-900 mb-4 uppercase tracking-wide flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary-500" />
+                      Rate Limits
+                    </h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                          Max Comments / Day
+                        </label>
+                        <input
+                          type="number"
+                          name="maxCommentsPerDay"
+                          defaultValue={settings.maxCommentsPerDay ?? 50}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                          Max Profile Views / Day
+                        </label>
+                        <input
+                          type="number"
+                          name="maxProfileViewsPerDay"
+                          defaultValue={settings.maxProfileViewsPerDay ?? 100}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                        />
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Engagement Thresholds */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Max Delay (Mins)</label>
-                    <input type="number" name="maxDelayMins" defaultValue={settings.maxDelayMins ?? 45} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium font-mono" />
+                    <h4 className="text-xs font-bold text-gray-900 mb-4 uppercase tracking-wide flex items-center gap-2">
+                      <Users className="w-4 h-4 text-secondary-500" />
+                      Engagement Thresholds
+                    </h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                          Minimum Likes to Comment
+                        </label>
+                        <input
+                          type="number"
+                          name="minLikes"
+                          defaultValue={settings.minLikes ?? 10}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                          Minimum Existing Comments
+                        </label>
+                        <input
+                          type="number"
+                          name="minComments"
+                          defaultValue={settings.minComments ?? 2}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-4 flex justify-end">
-                <button type="submit" className="px-8 py-4 bg-[#FF6B35] text-white rounded-xl hover:bg-[#e5531d] transition-all shadow-md shadow-orange-500/20 text-sm font-bold">
-                  Save Changes
-                </button>
-              </div>
-            </form>
+                {/* Divider */}
+                <div className="border-t border-gray-100"></div>
+
+                {/* Human Emulation */}
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-accent-500" />
+                    Human Emulation (Delays)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                        Min Delay (Minutes)
+                      </label>
+                      <input
+                        type="number"
+                        name="minDelayMins"
+                        defaultValue={settings.minDelayMins ?? 15}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                        Max Delay (Minutes)
+                      </label>
+                      <input
+                        type="number"
+                        name="maxDelayMins"
+                        defaultValue={settings.maxDelayMins ?? 45}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="pt-4 flex justify-end border-t border-gray-100">
+                  <Button type="submit" variant="primary" size="lg">
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            </Card>
           </div>
         );
       default:
@@ -493,62 +693,24 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-[#FAFAFA] font-sans">
-      <div className="w-64 bg-white border-r border-gray-100 flex flex-col shadow-sm">
-        <div className="p-6 border-b border-gray-100">
-          <Link href="/" className="inline-flex items-center gap-2 text-zinc-900 font-extrabold text-xl tracking-tight transition-transform hover:scale-105">
-            <div className="w-8 h-8 bg-[#FF6B35] rounded-xl flex items-center justify-center text-white shadow-sm shadow-orange-500/20">
-              <Bot size={20} />
-            </div>
-            Linqin<span className="text-[#FF6B35]">.ai</span>
-          </Link>
-        </div>
+    <>
+      {/* Sidebar */}
+      <Sidebar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        systemActive={systemActive} 
+      />
 
-        <div className="flex-1 py-6 px-4 space-y-2">
-          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10' : 'text-gray-500 hover:bg-gray-50 hover:text-zinc-900'}`}>
-            <LayoutDashboard size={18} className="mr-3" /> Dashboard
-          </button>
-          <button onClick={() => setActiveTab('keywords')} className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'keywords' ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10' : 'text-gray-500 hover:bg-gray-50 hover:text-zinc-900'}`}>
-            <Search size={18} className="mr-3" /> Target Queries
-          </button>
-          <button onClick={() => setActiveTab('comments')} className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10' : 'text-gray-500 hover:bg-gray-50 hover:text-zinc-900'}`}>
-            <MessageSquareText size={18} className="mr-3" /> Comment Bank
-          </button>
-          <button onClick={() => setActiveTab('autoposts')} className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'autoposts' ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10' : 'text-gray-500 hover:bg-gray-50 hover:text-zinc-900'}`}>
-            <PenTool size={18} className="mr-3" /> Auto Posts
-          </button>
-          <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === 'settings' ? 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10' : 'text-gray-500 hover:bg-gray-50 hover:text-zinc-900'}`}>
-            <Settings size={18} className="mr-3" /> Agent Setup
-          </button>
-        </div>
-
-        <div className="p-4 border-t border-gray-100 bg-white">
-          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
-            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
-              ME
-            </div>
-            <div>
-              <p className="text-sm font-bold text-zinc-900">Pro Account</p>
-              <p className="text-xs font-medium text-gray-500">Agent Status: {systemActive ? 'On' : 'Off'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-6 flex justify-between items-center z-10 sticky top-0">
-          <h1 className="text-2xl font-extrabold text-zinc-900 capitalize tracking-tight">
-            {activeTab.replace('-', ' ')}
-          </h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm font-bold tracking-tight bg-white border border-gray-200 shadow-sm px-4 py-2 rounded-full">
-              <div className={`w-2 h-2 rounded-full ${settings.linkedinSessionCookie ? 'bg-emerald-500' : 'bg-[#FF6B35] animate-pulse'}`}></div>
-              <span className="text-zinc-700">{settings.linkedinSessionCookie ? 'Session Connected' : 'Setup Required'}</span>
-            </div>
-          </div>
-        </header>
+        {/* Header */}
+        <Header 
+          title={activeTab} 
+          sessionConnected={!!settings.linkedinSessionCookie} 
+        />
 
-        <main className="flex-1 overflow-y-auto p-8 relative">
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-gray-50 relative">
           {/* Background pattern for depth */}
           <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none -z-10"></div>
 
@@ -557,7 +719,7 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
-    </div>
+    </>
   );
 }
 

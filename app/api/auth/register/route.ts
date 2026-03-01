@@ -22,11 +22,26 @@ export async function POST(req: Request) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user (settings will be created on first access via GET /api/settings)
+        // Create user with default settings
         const user = await prisma.user.create({
             data: {
                 email,
                 password: hashedPassword
+            }
+        });
+
+        // Create default settings for new user
+        await prisma.settings.create({
+            data: {
+                userId: user.id,
+                maxCommentsPerDay: 50,
+                maxProfileViewsPerDay: 100,
+                minLikes: 10,
+                minComments: 2,
+                minDelayMins: 15,
+                maxDelayMins: 45,
+                systemActive: false,
+                linkedinSessionCookie: ''
             }
         });
 

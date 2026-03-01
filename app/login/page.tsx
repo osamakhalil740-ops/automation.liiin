@@ -3,7 +3,13 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, MessageSquare, PenTool } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Bot, MessageSquare, PenTool, Mail, Lock, Sparkles } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Card from '@/components/ui/Card';
+import { showToast } from '@/components/ui/Toast';
+import NexoraLogo from '@/components/ui/NexoraLogo';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -23,7 +29,8 @@ export default function LoginPage() {
             const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({ email, password }),
+                credentials: 'include' // Important: include cookies
             });
 
             const data = await res.json();
@@ -32,113 +39,197 @@ export default function LoginPage() {
                 throw new Error(data.error || 'Something went wrong');
             }
 
-            router.push('/dashboard');
+            showToast.success(isLogin ? 'Welcome back!' : 'Account created successfully!');
+            
+            // Use window.location to ensure cookies are properly set before navigation
+            window.location.href = '/dashboard';
         } catch (err: any) {
             setError(err.message);
+            showToast.error(err.message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2rem] shadow-2xl shadow-gray-200/50 flex w-full max-w-5xl overflow-hidden border border-gray-100 min-h-[500px]">
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background Gradient */}
+            <div className="absolute inset-0 -z-10">
+                <div className="absolute top-0 left-0 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 right-0 w-96 h-96 bg-secondary-500/10 rounded-full blur-3xl" />
+            </div>
 
-                {/* Left Side: Value Prop */}
-                <div className="w-1/2 p-12 bg-[#FAFAFA] border-r border-gray-100 hidden md:flex flex-col justify-center">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="w-full max-w-6xl"
+            >
+                <Card variant="elevated" padding="none" className="flex flex-col md:flex-row overflow-hidden">
+                    {/* Left Side: Value Prop */}
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.5, delay: 0.2 }}
+                        className="w-full md:w-1/2 p-12 bg-gradient-to-br from-gray-50 to-white border-r border-gray-100 hidden md:flex flex-col justify-center"
+                    >
+                        {/* Logo */}
+                        <Link href="/" className="inline-block mb-12 group">
+                            <NexoraLogo size="lg" showText={true} />
+                        </Link>
 
-                    <div className="flex items-center gap-2 mb-10">
-                        <div className="bg-[#FF6B35] text-white px-3 py-1.5 rounded-l-full font-bold text-xl tracking-tight leading-none">
-                            Linqin
-                        </div>
-                        <div className="bg-gray-100 p-1.5 rounded-full flex items-center justify-center -ml-5 shadow-sm border border-white">
-                            <Bot size={20} className="text-[#FF6B35]" />
-                        </div>
-                    </div>
+                        <h1 className="text-4xl font-extrabold tracking-tight mb-4 text-gray-900">
+                            Your{' '}
+                            <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
+                                AI Agent
+                            </span>{' '}
+                            is waiting.
+                        </h1>
+                        <p className="text-gray-600 mb-12 text-lg">
+                            Start growing your LinkedIn presence on autopilot in just 2 minutes.
+                        </p>
 
-                    <h1 className="text-4xl font-extrabold tracking-tight mb-10 text-zinc-900">
-                        Your <span className="text-[#FF6B35]">AI Agent</span> is waiting.
-                    </h1>
-
-                    <div className="space-y-8">
-                        <div className="flex gap-4">
-                            <div className="bg-orange-50 p-3 rounded-2xl h-fit">
-                                <MessageSquare className="text-[#FF6B35]" size={24} />
+                        <div className="space-y-6">
+                            <div className="flex gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                    <MessageSquare className="text-primary-600 w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 mb-1">Smart Comment Engine</h3>
+                                    <p className="text-sm text-gray-600 leading-relaxed">
+                                        Borrow reach from influencers by adding value to their posts
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-zinc-900 mb-1">Borrowed Reach</h3>
-                                <p className="text-sm text-gray-500 leading-relaxed">Your agent comments on influencer posts, putting your name in front of thousands.</p>
+
+                            <div className="flex gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-secondary-50 flex items-center justify-center flex-shrink-0">
+                                    <PenTool className="text-secondary-600 w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 mb-1">Auto-Generated Posts</h3>
+                                    <p className="text-sm text-gray-600 leading-relaxed">
+                                        Thought leadership content based on real trends and your brand
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-accent-50 flex items-center justify-center flex-shrink-0">
+                                    <Sparkles className="text-accent-600 w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 mb-1">Full Autopilot</h3>
+                                    <p className="text-sm text-gray-600 leading-relaxed">
+                                        Set it once and let AI handle your LinkedIn engagement 24/7
+                                    </p>
+                                </div>
                             </div>
                         </div>
+                    </motion.div>
 
-                        <div className="flex gap-4">
-                            <div className="bg-blue-50 p-3 rounded-2xl h-fit">
-                                <PenTool className="text-blue-600" size={24} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-zinc-900 mb-1">Auto-Generated Posts</h3>
-                                <p className="text-sm text-gray-500 leading-relaxed">Thought leadership posts from real trends and data — on autopilot.</p>
-                            </div>
+                    {/* Right Side: Login Form */}
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.5, delay: 0.3 }}
+                        className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white"
+                    >
+                        {/* Mobile Logo */}
+                        <Link href="/" className="inline-block md:hidden mb-8 group">
+                            <NexoraLogo size="md" showText={true} />
+                        </Link>
+
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">
+                                {isLogin ? 'Welcome back' : 'Get started'}
+                            </h2>
+                            <p className="text-gray-600">
+                                {isLogin
+                                    ? 'Sign in to check on your agent and LinkedIn growth'
+                                    : 'Create your account and start growing today'}
+                            </p>
                         </div>
-                    </div>
-                </div>
 
-                {/* Right Side: Login Form */}
-                <div className="w-full md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
-                    <h2 className="text-2xl font-bold text-zinc-900 mb-2">
-                        {isLogin ? 'Sign in to your account' : 'Create your account'}
-                    </h2>
-                    <p className="text-sm text-gray-500 mb-8">
-                        {isLogin ? 'Check on your agent and LinkedIn growth.' : 'Get started with your personal AI agent today.'}
-                    </p>
-
-                    {error && (
-                        <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-semibold rounded-xl">
-                            {error}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-bold text-zinc-800 mb-2">Email address</label>
-                            <input
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                            <Input
+                                label="Email Address"
                                 type="email"
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="name@company.com"
-                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                                leftIcon={<Mail className="w-4 h-4" />}
+                                error={error && error.toLowerCase().includes('email') ? error : undefined}
+                                fullWidth
                             />
-                        </div>
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-bold text-zinc-800">Password</label>
-                                {isLogin && <a href="#" className="text-sm text-[#FF6B35] font-semibold hover:underline">Forgot password?</a>}
+
+                            <div>
+                                <Input
+                                    label="Password"
+                                    type="password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    leftIcon={<Lock className="w-4 h-4" />}
+                                    error={error && error.toLowerCase().includes('password') ? error : undefined}
+                                    fullWidth
+                                />
+                                {isLogin && (
+                                    <div className="mt-2 text-right">
+                                        <a
+                                            href="#"
+                                            className="text-sm text-primary-500 font-semibold hover:text-primary-600 transition-colors"
+                                        >
+                                            Forgot password?
+                                        </a>
+                                    </div>
+                                )}
                             </div>
-                            <input
-                                type="password"
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
-                            />
+
+                            <Button
+                                type="submit"
+                                variant="secondary"
+                                size="lg"
+                                fullWidth
+                                isLoading={loading}
+                            >
+                                {isLogin ? 'Sign In' : 'Create Account'}
+                            </Button>
+                        </form>
+
+                        <div className="mt-8 text-center">
+                            <p className="text-sm text-gray-600">
+                                {isLogin ? "Don't have an account? " : 'Already have an account? '}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsLogin(!isLogin);
+                                        setError('');
+                                    }}
+                                    className="font-semibold text-primary-500 hover:text-primary-600 transition-colors"
+                                >
+                                    {isLogin ? 'Sign up' : 'Sign in'}
+                                </button>
+                            </p>
                         </div>
 
-                        <button disabled={loading} type="submit" className="w-full block text-center bg-zinc-900 text-white font-bold py-4 rounded-xl hover:bg-zinc-800 transition shadow-lg mt-4 disabled:opacity-50">
-                            {loading ? 'Processing...' : (isLogin ? 'Sign In →' : 'Sign Up →')}
-                        </button>
-                    </form>
-
-                    <p className="text-center text-sm text-gray-500 mt-8 font-medium relative z-10">
-                        {isLogin ? "Don't have an account? " : "Already have an account? "}
-                        <button type="button" onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-[#FF6B35] font-bold hover:underline">
-                            {isLogin ? 'Sign Up' : 'Sign In'}
-                        </button>
-                    </p>
-                </div>
-
-            </div>
+                        {!isLogin && (
+                            <p className="mt-6 text-xs text-center text-gray-500">
+                                By creating an account, you agree to our{' '}
+                                <a href="#" className="text-primary-500 hover:underline">
+                                    Terms of Service
+                                </a>{' '}
+                                and{' '}
+                                <a href="#" className="text-primary-500 hover:underline">
+                                    Privacy Policy
+                                </a>
+                            </p>
+                        )}
+                    </motion.div>
+                </Card>
+            </motion.div>
         </div>
     );
 }

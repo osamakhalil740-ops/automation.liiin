@@ -1,0 +1,33 @@
+'use client';
+
+import React from 'react';
+import Badge from '@/components/ui/Badge';
+import { CheckCircle, AlertCircle } from 'lucide-react';
+
+interface HeaderProps {
+  title: string;
+  sessionConnected: boolean;
+}
+
+export default function Header({ title, sessionConnected }: HeaderProps) {
+  return (
+    <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 md:px-8 py-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4 sticky top-0 z-10">
+      {/* Page Title */}
+      <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 capitalize tracking-tight">
+        {title.replace('-', ' ')}
+      </h1>
+
+      {/* Session Status */}
+      <div className="flex items-center gap-4">
+        <Badge
+          variant={sessionConnected ? 'success' : 'warning'}
+          size="md"
+          dot
+          icon={sessionConnected ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+        >
+          {sessionConnected ? 'Session Connected' : 'Setup Required'}
+        </Badge>
+      </div>
+    </header>
+  );
+}

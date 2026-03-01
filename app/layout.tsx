@@ -1,8 +1,9 @@
 ﻿import './globals.css';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export const metadata = {
-  title: 'Linqin.ai – Your AI LinkedIn Agent',
-  description: 'Grow your reach on autopilot.',
+  title: 'Nexora – Your AI LinkedIn Presence',
+  description: 'Elevate your professional brand with intelligent LinkedIn automation. AI-powered engagement, auto-generated posts, and 24/7 presence.',
 };
 
 export default function RootLayout({
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body>
         <div className="absolute inset-0 bg-grid-pattern -z-10 pointer-events-none opacity-50"></div>
         {children}
+        <ToastProvider />
       </body>
     </html>
   );
