@@ -6,7 +6,7 @@ export interface SpinnerProps {
   className?: string;
 }
 
-export default function Spinner({
+function Spinner({
   size = 'md',
   color = 'primary',
   className = ''
@@ -120,3 +120,7 @@ export function PulseSpinner({
     </div>
   );
 }
+
+// Export both as named and default
+export { Spinner };
+export default Spinner;
