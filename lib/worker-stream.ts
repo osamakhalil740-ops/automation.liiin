@@ -4,6 +4,8 @@ export interface WorkerEvent {
   type: 'screenshot' | 'action' | 'log' | 'status' | 'error';
   timestamp: string;
   data: any;
+  userId?: string;
+  sessionId?: string;
 }
 
 export class WorkerStreamManager {
@@ -31,15 +33,31 @@ export class WorkerStreamManager {
       this.events.shift();
     }
 
+    console.log(`📝 [STREAM] Added ${fullEvent.type} event for user ${fullEvent.userId || 'unknown'} (total: ${this.events.length})`);
+
     return fullEvent;
   }
 
-  getRecentEvents(count: number = 50): WorkerEvent[] {
-    return this.events.slice(-count);
+  getRecentEvents(count: number = 50, userId?: string): WorkerEvent[] {
+    let filtered = this.events;
+    
+    // Filter by userId if provided
+    if (userId) {
+      filtered = this.events.filter(e => e.userId === userId);
+      console.log(`📊 [STREAM] Filtered events for user ${userId}: ${filtered.length}/${this.events.length}`);
+    }
+    
+    return filtered.slice(-count);
   }
 
-  clearEvents() {
-    this.events = [];
+  clearEvents(userId?: string) {
+    if (userId) {
+      this.events = this.events.filter(e => e.userId !== userId);
+      console.log(`🧹 [STREAM] Cleared events for user ${userId}`);
+    } else {
+      this.events = [];
+      console.log(`🧹 [STREAM] Cleared all events`);
+    }
   }
 }
 

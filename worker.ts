@@ -26,7 +26,7 @@
 
 import { chromium, Browser, Page } from 'playwright';
 import { PrismaClient } from '@prisma/client';
-import { broadcastScreenshot, broadcastAction, broadcastLog, broadcastStatus, setApiBaseUrl } from './lib/worker-broadcast';
+import { broadcastScreenshot, broadcastAction, broadcastLog, broadcastStatus, setApiBaseUrl, setUserContext } from './lib/worker-broadcast';
 
 const prisma = new PrismaClient();
 
@@ -298,6 +298,11 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
     console.log(`👤 Processing User: ${userId.slice(0, 8)}...`);
     console.log(`⚡ USER-INITIATED SESSION - Using CURRENT data only`);
     console.log(`========================================`);
+    
+    // ✅ Set user context for live broadcasts
+    const sessionId = `session-${Date.now()}-${userId.slice(0, 8)}`;
+    setUserContext(userId, sessionId);
+    console.log(`   📡 Live viewer session: ${sessionId}`);
 
     // STEP 1: Check daily limit using Log model
     const today = new Date();

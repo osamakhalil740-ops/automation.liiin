@@ -62,6 +62,21 @@ export interface BroadcastOptions {
   message: string;
   screenshot?: string; // base64 encoded
   metadata?: Record<string, any>;
+  userId?: string;
+  sessionId?: string;
+}
+
+// Store current user context
+let currentUserId: string | undefined;
+let currentSessionId: string | undefined;
+
+/**
+ * Set user context for broadcasts (called from worker)
+ */
+export function setUserContext(userId: string, sessionId?: string) {
+  currentUserId = userId;
+  currentSessionId = sessionId || `session-${Date.now()}`;
+  console.log(`   📡 User context set: ${userId.slice(0, 8)}... / ${currentSessionId}`);
 }
 
 /**
@@ -76,6 +91,8 @@ export async function broadcastUpdate(options: BroadcastOptions): Promise<void> 
       },
       body: JSON.stringify({
         type: options.type,
+        userId: options.userId || currentUserId,
+        sessionId: options.sessionId || currentSessionId,
         data: {
           message: options.message,
           screenshot: options.screenshot,
@@ -85,11 +102,14 @@ export async function broadcastUpdate(options: BroadcastOptions): Promise<void> 
     });
 
     if (!response.ok) {
-      console.warn('Failed to broadcast update:', response.statusText);
+      const errorText = await response.text().catch(() => response.statusText);
+      console.warn(`Failed to broadcast update: ${response.status} ${errorText}`);
+    } else {
+      // Success - silently continue
     }
-  } catch (error) {
+  } catch (error: any) {
     // Silently fail - don't break worker if dashboard is unreachable
-    console.warn('Broadcast error (non-fatal):', error);
+    console.warn('Broadcast error (non-fatal):', error.message || error);
   }
 }
 

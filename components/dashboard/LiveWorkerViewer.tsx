@@ -21,11 +21,32 @@ export default function LiveWorkerViewer() {
   const [autoScroll, setAutoScroll] = useState(true);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
+  // Get current user ID from settings
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          setUserId(data.userId);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user ID:', error);
+      }
+    };
+    fetchUserId();
+  }, []);
+
   // Poll for new events every 2 seconds
   useEffect(() => {
+    if (!userId) return; // Wait for userId to be loaded
+
     const pollEvents = async () => {
       try {
-        const response = await fetch('/api/worker-events?count=50');
+        // Filter events by current user
+        const response = await fetch(`/api/worker-events?count=50&userId=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           setEvents(data.events || []);
@@ -55,7 +76,7 @@ export default function LiveWorkerViewer() {
     const interval = setInterval(pollEvents, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -186,9 +207,11 @@ export default function LiveWorkerViewer() {
           <span>Showing last 50 events</span>
           <button
             onClick={async () => {
-              await fetch('/api/worker-events', { method: 'DELETE' });
-              setEvents([]);
-              setCurrentScreenshot(null);
+              if (userId) {
+                await fetch(`/api/worker-events?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
+                setEvents([]);
+                setCurrentScreenshot(null);
+              }
             }}
             className="text-red-400 hover:text-red-300 transition-colors"
           >
