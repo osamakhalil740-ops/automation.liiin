@@ -63,57 +63,94 @@ interface PostData {
 }
 
 /**
- * Extract post metrics - SIMPLIFIED AND RELIABLE
+ * Extract post metrics - WITH MULTIPLE FALLBACK SELECTORS
  */
 async function extractPostData(postElement: any): Promise<PostData | null> {
     try {
-        // Get likes count
+        // Get likes count - Try multiple selectors
         let likes = 0;
-        try {
-            const likesEl = await postElement.$('.social-details-social-counts__reactions-count');
-            if (likesEl) {
-                const text = await likesEl.textContent();
-                likes = parseInt(text?.replace(/[^0-9]/g, '') || '0') || 0;
-            }
-        } catch (e) {
-            // Likes not found, default to 0
-        }
-
-        // Get comments count
-        let comments = 0;
-        try {
-            const commentsEl = await postElement.$('.social-details-social-counts__comments');
-            if (commentsEl) {
-                const text = await commentsEl.textContent();
-                comments = parseInt(text?.replace(/[^0-9]/g, '') || '0') || 0;
-            }
-        } catch (e) {
-            // Comments not found, default to 0
-        }
-
-        // Get post URL
-        let postUrl = 'unknown';
-        try {
-            const linkEl = await postElement.$('a[href*="/feed/update/"], a[href*="activity"]');
-            if (linkEl) {
-                const href = await linkEl.getAttribute('href');
-                if (href) {
-                    postUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
-                    postUrl = postUrl.split('?')[0]; // Clean URL
+        const likeSelectors = [
+            '.social-details-social-counts__reactions-count',
+            '.social-details-social-counts__reactions',
+            'button[aria-label*="reaction"] span',
+            '.social-details-social-counts__item--with-social-proof'
+        ];
+        
+        for (const selector of likeSelectors) {
+            try {
+                const likesEl = await postElement.$(selector);
+                if (likesEl) {
+                    const text = await likesEl.textContent();
+                    const parsed = parseInt(text?.replace(/[^0-9]/g, '') || '0');
+                    if (parsed > 0) {
+                        likes = parsed;
+                        break;
+                    }
                 }
+            } catch (e) {
+                continue;
             }
-        } catch (e) {
-            // URL not found
         }
 
+        // Get comments count - Try multiple selectors
+        let comments = 0;
+        const commentSelectors = [
+            '.social-details-social-counts__comments',
+            'button[aria-label*="comment"] span',
+            '.social-details-social-counts__item:has-text("comment")'
+        ];
+        
+        for (const selector of commentSelectors) {
+            try {
+                const commentsEl = await postElement.$(selector);
+                if (commentsEl) {
+                    const text = await commentsEl.textContent();
+                    const parsed = parseInt(text?.replace(/[^0-9]/g, '') || '0');
+                    if (parsed > 0) {
+                        comments = parsed;
+                        break;
+                    }
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+
+        // Get post URL - Try multiple methods
+        let postUrl = 'unknown';
+        const urlSelectors = [
+            'a.feed-shared-actor__sub-description-link',
+            'a[href*="/feed/update/"]',
+            'a.app-aware-link[href*="activity"]',
+            'a[href*="urn:li:activity"]'
+        ];
+        
+        for (const selector of urlSelectors) {
+            try {
+                const linkEl = await postElement.$(selector);
+                if (linkEl) {
+                    const href = await linkEl.getAttribute('href');
+                    if (href && (href.includes('activity') || href.includes('update'))) {
+                        postUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
+                        postUrl = postUrl.split('?')[0];
+                        break;
+                    }
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+
+        console.log(`         DEBUG: Extracted - ${likes} likes, ${comments} comments, URL: ${postUrl.substring(0, 50)}...`);
         return { element: postElement, likes, comments, postUrl };
     } catch (error) {
+        console.log(`         DEBUG: Failed to extract post data: ${error}`);
         return null;
     }
 }
 
 /**
- * Scroll and collect posts - SIMPLIFIED
+ * Scroll and collect posts - WITH MULTIPLE SELECTORS AND DEBUG
  */
 async function collectPosts(page: Page): Promise<PostData[]> {
     const allPosts: PostData[] = [];
@@ -122,8 +159,28 @@ async function collectPosts(page: Page): Promise<PostData[]> {
     console.log(`   📜 Scrolling to collect posts...`);
 
     for (let i = 0; i < 5; i++) {
-        // Get posts
-        const postElements = await page.$$('.feed-shared-update-v2');
+        console.log(`      Scroll ${i + 1}/5...`);
+        
+        // Try multiple post selectors
+        const postSelectors = [
+            '.feed-shared-update-v2',
+            '.feed-shared-update-v2__description-wrapper',
+            'div[data-id^="urn:li:activity"]',
+            '.occludable-update'
+        ];
+        
+        let postElements: any[] = [];
+        for (const selector of postSelectors) {
+            postElements = await page.$$(selector).catch(() => []);
+            if (postElements.length > 0) {
+                console.log(`      Found ${postElements.length} posts with selector: ${selector}`);
+                break;
+            }
+        }
+        
+        if (postElements.length === 0) {
+            console.log(`      ⚠️ No posts found on this scroll`);
+        }
         
         // Extract data
         for (const postEl of postElements) {
@@ -131,7 +188,7 @@ async function collectPosts(page: Page): Promise<PostData[]> {
             if (data && data.postUrl !== 'unknown' && !seenUrls.has(data.postUrl)) {
                 seenUrls.add(data.postUrl);
                 allPosts.push(data);
-                console.log(`      • Post: ${data.likes} likes, ${data.comments} comments`);
+                console.log(`      ✅ Post: ${data.likes} likes, ${data.comments} comments`);
             }
         }
 
@@ -142,12 +199,12 @@ async function collectPosts(page: Page): Promise<PostData[]> {
         }
     }
 
-    console.log(`   ✅ Collected ${allPosts.length} posts`);
+    console.log(`   ✅ Collected ${allPosts.length} unique posts`);
     return allPosts;
 }
 
 /**
- * Post comment and VERIFY it appears - COMPLETELY REBUILT
+ * Post comment and VERIFY it appears - WITH MULTIPLE SELECTOR FALLBACKS
  */
 async function postCommentWithVerification(
     postElement: any, 
@@ -157,40 +214,92 @@ async function postCommentWithVerification(
     try {
         console.log(`   💬 Attempting to post comment...`);
 
-        // Step 1: Click comment button
-        const commentBtn = await postElement.$('button[aria-label*="Comment"]');
+        // Step 1: Click comment button - Try multiple selectors
+        console.log(`   🔍 Looking for comment button...`);
+        const commentBtnSelectors = [
+            'button[aria-label*="Comment"]',
+            '.comment-button',
+            'button.comment',
+            '[data-control-name="comment"]',
+            'button[class*="comment"]'
+        ];
+
+        let commentBtn = null;
+        for (const selector of commentBtnSelectors) {
+            commentBtn = await postElement.$(selector).catch(() => null);
+            if (commentBtn) {
+                console.log(`   ✅ Comment button found: ${selector}`);
+                break;
+            }
+        }
+
         if (!commentBtn) {
-            console.log(`   ❌ Comment button not found`);
+            console.log(`   ❌ Comment button not found (tried ${commentBtnSelectors.length} selectors)`);
             return { success: false };
         }
 
         await commentBtn.scrollIntoViewIfNeeded();
         await sleep(500);
         await commentBtn.click();
-        await sleep(1500);
+        console.log(`   ✅ Clicked comment button`);
+        await sleep(2000); // Increased wait for editor to appear
 
-        // Step 2: Find editor and type
-        const editor = await postElement.$('.ql-editor[contenteditable="true"]');
+        // Step 2: Find editor and type - Try multiple selectors
+        console.log(`   🔍 Looking for comment editor...`);
+        const editorSelectors = [
+            '.ql-editor[contenteditable="true"]',
+            '[contenteditable="true"].ql-editor',
+            '.comments-comment-box__text-editor',
+            'div[role="textbox"]',
+            '[contenteditable="true"]'
+        ];
+
+        let editor = null;
+        for (const selector of editorSelectors) {
+            editor = await postElement.$(selector).catch(() => null);
+            if (editor) {
+                console.log(`   ✅ Editor found: ${selector}`);
+                break;
+            }
+        }
+
         if (!editor) {
-            console.log(`   ❌ Comment editor not found`);
+            console.log(`   ❌ Comment editor not found (tried ${editorSelectors.length} selectors)`);
             return { success: false };
         }
 
         await editor.click();
-        await sleep(300);
+        await sleep(500);
+        console.log(`   ⌨️  Typing comment...`);
         await editor.type(commentText, { delay: 60 });
         await sleep(1000);
 
-        // Step 3: Click submit
-        const submitBtn = await postElement.$('.comments-comment-box__submit-button--cr, .comments-comment-box__submit-button');
-        if (!submitBtn) {
-            console.log(`   ❌ Submit button not found`);
-            return { success: false };
+        // Step 3: Click submit - Try multiple selectors
+        console.log(`   🔍 Looking for submit button...`);
+        const submitSelectors = [
+            '.comments-comment-box__submit-button--cr',
+            '.comments-comment-box__submit-button',
+            'button[type="submit"]',
+            'button.comments-comment-box-comment__button',
+            'button[class*="submit"]'
+        ];
+
+        let submitBtn = null;
+        for (const selector of submitSelectors) {
+            submitBtn = await postElement.$(selector).catch(() => null);
+            if (submitBtn) {
+                const isEnabled = await submitBtn.isEnabled().catch(() => false);
+                if (isEnabled) {
+                    console.log(`   ✅ Submit button found: ${selector}`);
+                    break;
+                } else {
+                    submitBtn = null; // Not enabled, keep looking
+                }
+            }
         }
 
-        const isEnabled = await submitBtn.isEnabled();
-        if (!isEnabled) {
-            console.log(`   ❌ Submit button is disabled`);
+        if (!submitBtn) {
+            console.log(`   ❌ Submit button not found or disabled (tried ${submitSelectors.length} selectors)`);
             return { success: false };
         }
 
@@ -198,8 +307,8 @@ async function postCommentWithVerification(
         await submitBtn.click();
         
         // Step 4: WAIT and VERIFY
-        console.log(`   ⏳ Waiting 4 seconds for LinkedIn to process...`);
-        await sleep(4000);
+        console.log(`   ⏳ Waiting 5 seconds for LinkedIn to process...`);
+        await sleep(5000); // Increased from 4s
 
         console.log(`   🔍 Verifying comment appears...`);
         
@@ -212,11 +321,13 @@ async function postCommentWithVerification(
             return { success: true };
         } else {
             console.log(`   ❌ VERIFICATION FAILED: Comment text NOT found on page`);
+            console.log(`   🔍 Searched for: "${snippet}"`);
             return { success: false };
         }
 
     } catch (error: any) {
         console.log(`   ❌ Error posting comment: ${error.message}`);
+        console.log(`   Stack: ${error.stack}`);
         return { success: false };
     }
 }
@@ -254,11 +365,30 @@ async function processKeyword(
         return false;
     }
 
-    // Step 2: Wait for posts
-    try {
-        await page.waitForSelector('.feed-shared-update-v2', { timeout: 10000 });
-    } catch (error) {
-        console.log(`   ❌ No posts found`);
+    // Step 2: Wait for posts - Try multiple selectors
+    console.log(`   ⏳ Waiting for posts to load...`);
+    const postSelectors = [
+        '.feed-shared-update-v2',
+        '.feed-shared-update-v2__description-wrapper',
+        'div[data-id^="urn:li:activity"]',
+        '.occludable-update'
+    ];
+    
+    let postsFound = false;
+    for (const selector of postSelectors) {
+        try {
+            await page.waitForSelector(selector, { timeout: 6000 });
+            console.log(`   ✅ Posts loaded (selector: ${selector})`);
+            postsFound = true;
+            break;
+        } catch (error) {
+            console.log(`   ⚠️ Selector ${selector} not found, trying next...`);
+            continue;
+        }
+    }
+    
+    if (!postsFound) {
+        console.log(`   ❌ No posts found after trying all selectors`);
         await logAction(userId, `❌ No posts found for "${keywordText}"`, searchUrl);
         return false;
     }
