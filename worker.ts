@@ -355,7 +355,7 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
     const startTime = Date.now();
     
     const browser = await chromium.launch({ 
-        headless: false,
+        headless: false, // Non-headless for proper rendering in live viewer
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -380,10 +380,11 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
     
     const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        viewport: { width: 1920, height: 1080 },
+        viewport: { width: 1366, height: 768 }, // Standard laptop size for better live viewer display
         acceptDownloads: false,
         javaScriptEnabled: true,
-        // ⚡ SPEED: Disable media and other heavy features
+        locale: 'en-US',
+        timezoneId: 'America/New_York',
         permissions: [],
         serviceWorkers: 'block'
     });
@@ -400,18 +401,23 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
 
     const page = await context.newPage();
     
-    // ⚡ ULTRA-FAST: Block ALL non-essential resources for instant loading
+    // Allow essential resources for proper page rendering (for live viewer screenshots)
     await page.route('**/*', route => {
         const url = route.request().url();
         const resourceType = route.request().resourceType();
         
-        // Only allow document, script, xhr, and fetch - block everything else
-        if (['document', 'script', 'xhr', 'fetch'].includes(resourceType)) {
+        // Allow document, script, xhr, fetch, stylesheet for proper rendering
+        // Only block heavy media (videos, large images)
+        if (['document', 'script', 'xhr', 'fetch', 'stylesheet', 'font', 'image'].includes(resourceType)) {
             return route.continue();
         }
         
-        // Block images, stylesheets, fonts, media
-        return route.abort();
+        // Block only heavy media like videos
+        if (resourceType === 'media') {
+            return route.abort();
+        }
+        
+        return route.continue();
     });
     
     const launchTime = Date.now() - startTime;
@@ -445,11 +451,11 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
             console.log(`   🔎 [SEARCH] Navigating to LinkedIn search...`);
             
             try {
-                // ⚡ INSTANT: Use domcontentloaded for immediate start
+                // Navigate and wait for page to be fully loaded for clean screenshots
                 await broadcastAction(`Searching LinkedIn for: "${keyword.keyword}"`);
-                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-                await sleep(800); // Reduced from 1500ms - minimal wait
-                console.log(`   ✅ [SEARCH] Loaded instantly`);
+                await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 20000 });
+                await sleep(1500); // Wait for LinkedIn to fully render
+                console.log(`   ✅ [SEARCH] Page loaded`);
                 await broadcastScreenshot(page, `LinkedIn search results for "${keyword.keyword}"`);
             } catch (navError: any) {
                 console.log(`   ❌ [SEARCH] Navigation failed: ${navError.message}`);

@@ -49,11 +49,15 @@ export async function broadcastUpdate(options: BroadcastOptions): Promise<void> 
  */
 export async function broadcastScreenshot(page: Page, message: string, metadata?: Record<string, any>): Promise<void> {
   try {
-    // Capture screenshot
+    // Wait a moment for any animations to complete
+    await page.waitForTimeout(500);
+    
+    // Capture screenshot with better quality for live viewer
     const screenshot = await page.screenshot({ 
       type: 'jpeg',
-      quality: 70, // Reduced quality for faster streaming
+      quality: 85, // Higher quality for clearer live view (was 70)
       fullPage: false, // Only visible viewport
+      animations: 'disabled', // Disable animations for cleaner screenshot
     });
     
     // Convert to base64
