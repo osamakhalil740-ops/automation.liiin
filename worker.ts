@@ -613,7 +613,11 @@ async function runOrchestrator() {
             for (const userSettings of activeSettings) {
                 if (!userSettings.userId) continue;
                 
-                console.log(`📊 Loading CURRENT session data for user: ${userSettings.userId.slice(0, 8)}...`);
+                console.log(`\n════════════════════════════════════════════════════════════`);
+                console.log(`📊 Processing User: ${userSettings.userId.slice(0, 8)}`);
+                console.log(`🔐 Account Email: ${userSettings.userId}`);
+                console.log(`⚡ Loading FRESH data from database for THIS session...`);
+                console.log(`════════════════════════════════════════════════════════════`);
                 
                 try {
                     // ✅ Log the start of user-initiated action

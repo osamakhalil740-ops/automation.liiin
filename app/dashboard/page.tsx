@@ -113,17 +113,26 @@ export default function Dashboard() {
     
     // ✅ USER ACTION: Start worker only when user clicks "Start"
     if (newState) {
-      console.log('🚀 User clicked START - Initiating worker...');
+      console.log('🚀 User clicked START - Initiating worker for CURRENT session...');
+      console.log('🧹 This will clear any old sessions and use ONLY your current data');
       try {
         const response = await fetch('/api/worker/start', { method: 'POST' });
         const result = await response.json();
         if (result.success) {
-          console.log('✅ Worker started successfully:', result);
+          console.log('✅ Worker started successfully for YOUR account:', result);
+          console.log(`   • Worker PID: ${result.pid}`);
+          console.log(`   • User ID: ${result.userId}`);
+          console.log(`   • Started at: ${result.startedAt}`);
+          console.log('✅ Worker will ONLY process YOUR keywords and settings');
         } else {
           console.error('❌ Failed to start worker:', result);
+          if (result.error) {
+            alert(`Failed to start worker: ${result.error}`);
+          }
         }
       } catch (error) {
         console.error('❌ Error starting worker:', error);
+        alert('Failed to start worker. Please try again.');
       }
     } else {
       console.log('⏸️ User clicked PAUSE - Worker will stop after current cycle');
