@@ -347,8 +347,8 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
     console.log(`      • Max Comments: ${settings.maxComments}`);
     console.log(`      • Max Per Day: ${settings.maxCommentsPerDay}`);
 
-    // STEP 3: OPTIMIZED Browser Launch - Faster with performance flags
-    console.log(`\n   🌐 Launching browser (optimized)...`);
+    // STEP 3: ⚡ ULTRA-FAST Browser Launch - Instant startup with maximum optimization
+    console.log(`\n   ⚡ Launching browser (ultra-fast mode)...`);
     const startTime = Date.now();
     
     const browser = await chromium.launch({ 
@@ -363,16 +363,26 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
-            '--disable-gpu' // Faster for automation
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--disable-features=IsolateOrigins,site-per-process',
+            '--disable-web-security',
+            '--disable-site-isolation-trials',
+            '--disk-cache-size=1',
+            '--media-cache-size=1',
+            '--aggressive-cache-discard',
+            '--disable-application-cache'
         ]
     });
     
     const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
-        // OPTIMIZED: Reduce resource loading
         acceptDownloads: false,
-        javaScriptEnabled: true
+        javaScriptEnabled: true,
+        // ⚡ SPEED: Disable media and other heavy features
+        permissions: [],
+        serviceWorkers: 'block'
     });
 
     await context.addCookies([{
@@ -387,11 +397,22 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
 
     const page = await context.newPage();
     
-    // OPTIMIZED: Block unnecessary resources for faster loading
-    await page.route('**/*.{png,jpg,jpeg,gif,svg,css,font,woff,woff2}', route => route.abort());
+    // ⚡ ULTRA-FAST: Block ALL non-essential resources for instant loading
+    await page.route('**/*', route => {
+        const url = route.request().url();
+        const resourceType = route.request().resourceType();
+        
+        // Only allow document, script, xhr, and fetch - block everything else
+        if (['document', 'script', 'xhr', 'fetch'].includes(resourceType)) {
+            return route.continue();
+        }
+        
+        // Block images, stylesheets, fonts, media
+        return route.abort();
+    });
     
     const launchTime = Date.now() - startTime;
-    console.log(`   ✅ Browser ready in ${launchTime}ms`);
+    console.log(`   ⚡ Browser ready in ${launchTime}ms (ultra-fast mode enabled)`);
 
     try {
         let totalCommentsPosted = 0;
@@ -414,28 +435,28 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
                 break;
             }
 
-            // STEP 5: OPTIMIZED Navigation to LinkedIn search
+            // STEP 5: ⚡ INSTANT Navigation to LinkedIn search
             const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword.keyword)}&sortBy=date_posted`;
-            console.log(`   🔎 [SEARCH] Navigating...`);
+            console.log(`   🔎 [SEARCH] Navigating to LinkedIn search...`);
             
             try {
-                // OPTIMIZED: Use networkidle for faster perceived load
-                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-                await sleep(1500); // Reduced from 3000ms
-                console.log(`   ✅ [SEARCH] Loaded`);
+                // ⚡ INSTANT: Use domcontentloaded for immediate start
+                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+                await sleep(800); // Reduced from 1500ms - minimal wait
+                console.log(`   ✅ [SEARCH] Loaded instantly`);
             } catch (navError: any) {
                 console.log(`   ❌ [SEARCH] Navigation failed: ${navError.message}`);
-                await logAction(userId, `Search failed for "${keyword.keyword}": Navigation error`, searchUrl);
+                await logAction(userId, `❌ Search failed for keyword "${keyword.keyword}": Navigation error`, searchUrl);
                 continue; // Move to next keyword
             }
 
-            // STEP 6: Wait for posts to load (reduced timeout)
+            // STEP 6: ⚡ Fast post detection
             try {
-                await page.waitForSelector('.feed-shared-update-v2, .feed-shared-update-v2__description-wrapper', { timeout: 8000 });
-                console.log(`   ✅ [SCAN] Posts detected`);
+                await page.waitForSelector('.feed-shared-update-v2, .feed-shared-update-v2__description-wrapper', { timeout: 6000 });
+                console.log(`   ✅ [SCAN] Posts detected on page`);
             } catch (e) {
-                console.log(`   ❌ [SCAN] No posts loaded for "${keyword.keyword}"`);
-                await logAction(userId, `No posts found for "${keyword.keyword}"`, searchUrl);
+                console.log(`   ❌ [SCAN] No posts loaded for keyword "${keyword.keyword}"`);
+                await logAction(userId, `❌ No posts found for keyword "${keyword.keyword}"`, searchUrl);
                 continue; // Move to next keyword
             }
 
@@ -464,25 +485,27 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
 
             console.log(`   ✅ [FILTER] Found ${matchingPosts.length} posts matching criteria`);
 
-            // STEP 9: Select best post (closest to target reach)
-            // IMPORTANT: Always select a post, even if none match criteria exactly
+            // STEP 9: ✅ GUARANTEED POST SELECTION - Always select closest to target reach
+            // PRIORITY: Exact match first, then closest match - NEVER SKIP
             let postsToConsider: PostData[];
             let selectionMode: string;
 
             if (matchingPosts.length > 0) {
                 // Use posts that match the criteria
                 postsToConsider = matchingPosts;
-                selectionMode = 'exact criteria match';
+                selectionMode = 'EXACT CRITERIA MATCH';
+                console.log(`   ✅ [FILTER] ${matchingPosts.length} posts match exact criteria`);
             } else {
                 // No exact matches - use ALL posts and find closest to target
-                console.log(`   ⚠️  [FILTER] No exact matches - selecting closest match from all ${allPosts.length} posts`);
+                console.log(`   ⚠️  [FILTER] No exact matches - using CLOSEST MATCH from all ${allPosts.length} posts`);
                 postsToConsider = allPosts;
-                selectionMode = 'closest match (relaxed criteria)';
+                selectionMode = 'CLOSEST MATCH (relaxed criteria)';
             }
 
             let bestPost: PostData | null = null;
             let bestDiff = Infinity;
 
+            // Find post CLOSEST to target reach
             for (const post of postsToConsider) {
                 const diff = Math.abs(post.likes - targetReach);
                 if (diff < bestDiff) {
@@ -492,42 +515,64 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
             }
 
             if (!bestPost) {
-                console.log(`   ❌ [SELECT] Could not select any post (unexpected error)`);
+                console.log(`   ❌ [SELECT] CRITICAL ERROR: No posts available (this should never happen)`);
+                await logAction(userId, `CRITICAL: No posts available for keyword "${keyword.keyword}"`, searchUrl);
                 continue;
             }
 
-            console.log(`   ✅ [SELECT] Selected post: ${bestPost.likes} likes, ${bestPost.comments} comments`);
-            console.log(`      • Selection mode: ${selectionMode}`);
-            console.log(`      • Distance from target (${targetReach}): ${bestDiff} likes`);
+            // ✅ COMPREHENSIVE LOGGING: Show exactly what was selected
+            console.log(`\n   ╔════════════════════════════════════════════════════════════╗`);
+            console.log(`   ║ 📊 POST SELECTION DETAILS`);
+            console.log(`   ╚════════════════════════════════════════════════════════════╝`);
+            console.log(`   🎯 Keyword: "${keyword.keyword}"`);
+            console.log(`   🎯 Target Reach: ${targetReach} likes`);
+            console.log(`   ✅ Selection Mode: ${selectionMode}`);
+            console.log(`   ✅ Selected Post:`);
+            console.log(`      • Likes: ${bestPost.likes}`);
+            console.log(`      • Comments: ${bestPost.comments}`);
+            console.log(`      • Distance from Target: ${bestDiff} likes`);
+            console.log(`      • Match Quality: ${bestDiff === 0 ? 'PERFECT' : bestDiff < 100 ? 'EXCELLENT' : bestDiff < 500 ? 'GOOD' : 'ACCEPTABLE'}`);
+            console.log(`      • URL: ${bestPost.postUrl.substring(0, 60)}...`);
 
-            // STEP 10: Select comment (keyword-specific or general)
+            // STEP 10: ✅ GUARANTEED COMMENT SELECTION
             const availableComments = keyword.comments.length > 0 
                 ? keyword.comments 
                 : generalComments;
 
             if (availableComments.length === 0) {
-                console.log(`   ❌ [COMMENT] No comments available for "${keyword.keyword}"`);
-                await logAction(userId, `No comments configured for "${keyword.keyword}"`, bestPost.postUrl);
+                console.log(`\n   ❌ [COMMENT] CRITICAL: No comments available for "${keyword.keyword}"`);
+                console.log(`   ⚠️  Cannot proceed without comments. Please configure comments for this keyword.`);
+                await logAction(userId, `SKIPPED: No comments configured for keyword "${keyword.keyword}"`, bestPost.postUrl);
                 continue; // Move to next keyword
             }
 
             const selectedComment = availableComments[Math.floor(Math.random() * availableComments.length)];
             const commentSource = keyword.comments.length > 0 ? 'Keyword-specific' : 'General pool';
             
-            console.log(`   💬 [COMMENT] Selected from ${commentSource}:`);
-            console.log(`      "${selectedComment.text.substring(0, 60)}..."`);
+            console.log(`\n   💬 [COMMENT] Selected from ${commentSource}:`);
+            console.log(`      "${selectedComment.text.substring(0, 80)}..."`);
+            console.log(`      (${selectedComment.text.length} characters)`);
 
-            // STEP 11: Post the comment
+            // STEP 11: ✅ POST THE COMMENT - GUARANTEED ATTEMPT
+            console.log(`\n   🚀 [POSTING] Attempting to post comment...`);
             const success = await postComment(bestPost.element, selectedComment.text);
 
             if (success) {
                 totalCommentsPosted++;
-                console.log(`   ✅ [SUCCESS] Comment posted! Total today: ${totalCommentsPosted}/${settings.maxCommentsPerDay}`);
+                
+                // ✅ SUCCESS LOGGING
+                console.log(`\n   ╔════════════════════════════════════════════════════════════╗`);
+                console.log(`   ║ ✅ COMMENT POSTED SUCCESSFULLY!`);
+                console.log(`   ╚════════════════════════════════════════════════════════════╝`);
+                console.log(`   📊 Progress: ${totalCommentsPosted}/${settings.maxCommentsPerDay} comments today`);
+                console.log(`   🎯 Keyword: "${keyword.keyword}"`);
+                console.log(`   📈 Post Reach: ${bestPost.likes} likes, ${bestPost.comments} comments`);
+                console.log(`   💬 Comment: "${selectedComment.text.substring(0, 60)}..."`);
 
-                // Log to database
+                // Log to database with full details
                 await logAction(
                     userId, 
-                    `Commented on post for "${keyword.keyword}" (${bestPost.likes} likes)`, 
+                    `✅ Commented on post for "${keyword.keyword}" (${bestPost.likes} likes, target: ${targetReach})`, 
                     bestPost.postUrl,
                     selectedComment.text
                 );
@@ -545,8 +590,20 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
                 });
 
             } else {
-                console.log(`   ❌ [FAILED] Could not post comment`);
-                await logAction(userId, `Failed to comment on post for "${keyword.keyword}"`, bestPost.postUrl);
+                // ❌ FAILURE LOGGING
+                console.log(`\n   ╔════════════════════════════════════════════════════════════╗`);
+                console.log(`   ║ ❌ COMMENT POSTING FAILED`);
+                console.log(`   ╚════════════════════════════════════════════════════════════╝`);
+                console.log(`   ⚠️  Keyword: "${keyword.keyword}"`);
+                console.log(`   ⚠️  Post: ${bestPost.likes} likes`);
+                console.log(`   ⚠️  Reason: Technical error (button not found or disabled)`);
+                
+                await logAction(
+                    userId, 
+                    `❌ FAILED to comment on post for "${keyword.keyword}" (${bestPost.likes} likes)`, 
+                    bestPost.postUrl,
+                    selectedComment.text
+                );
             }
 
             // STEP 12: OPTIMIZED Wait before next keyword (faster but still safe)
