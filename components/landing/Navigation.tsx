@@ -69,7 +69,7 @@ export default function Navigation() {
               ))}
             </div>
 
-            {/* Refined Desktop CTA */}
+            {/* Refined Desktop CTA with Premium Accent */}
             <div className="hidden md:flex items-center gap-4">
               <Link
                 href="/login"
@@ -78,7 +78,7 @@ export default function Navigation() {
                 Sign In
               </Link>
               <Link href="/login">
-                <button className="px-6 py-2.5 bg-white hover:bg-zinc-100 text-black font-semibold rounded-xl transition-all duration-200">
+                <button className="px-6 py-2.5 bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-amber-900/30 hover:shadow-xl hover:shadow-amber-900/50">
                   Get Started
                 </button>
               </Link>
@@ -179,7 +179,7 @@ export default function Navigation() {
                   </Link>
                 </motion.div>
 
-                {/* Get Started Button */}
+                {/* Get Started Button with Premium Accent */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -187,7 +187,7 @@ export default function Navigation() {
                   className="pt-4"
                 >
                   <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                    <button className="w-full px-6 py-4 bg-white hover:bg-zinc-100 text-black font-semibold rounded-xl transition-all">
+                    <button className="w-full px-6 py-4 bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all shadow-lg shadow-amber-900/30">
                       Get Started
                     </button>
                   </Link>

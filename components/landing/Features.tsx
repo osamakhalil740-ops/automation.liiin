@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { MessageSquare, Target, TrendingUp, Shield, Zap, PenTool } from 'lucide-react';
+import AnimatedBackground from './AnimatedBackground';
 
 const features = [
   {
@@ -55,11 +56,8 @@ const item = {
 export default function Features() {
   return (
     <section id="features" className="relative py-32 px-4 overflow-hidden bg-[#0a0a0a]">
-      {/* Elegant Dark Background */}
-      <div className="absolute inset-0 -z-10">
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAyKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
-      </div>
+      {/* Premium Animated Background */}
+      <AnimatedBackground />
 
       <div className="max-w-7xl mx-auto relative">
         {/* Refined Section Header */}
@@ -96,21 +94,24 @@ export default function Features() {
                 variants={item}
                 className="group relative"
               >
-                {/* Refined Card */}
-                <div className="h-full bg-zinc-900/40 border border-zinc-800/50 rounded-2xl p-8 hover:bg-zinc-900/60 hover:border-zinc-700/50 transition-all duration-300">
-                  {/* Simple Icon */}
-                  <div className="mb-6">
-                    <div className="w-12 h-12 rounded-xl bg-zinc-800/50 border border-zinc-700/50 flex items-center justify-center group-hover:bg-zinc-800 group-hover:border-zinc-600/50 transition-all duration-300">
-                      <Icon className="w-6 h-6 text-zinc-400 group-hover:text-zinc-300 transition-colors" />
+                {/* Layered Card with Glass Effect and Depth */}
+                <div className="h-full bg-zinc-900/40 border border-zinc-800/50 rounded-2xl p-8 hover:bg-zinc-900/60 hover:border-zinc-700/50 transition-all duration-300 backdrop-blur-sm shadow-xl shadow-black/20 hover:shadow-2xl hover:shadow-black/30 hover:-translate-y-1">
+                  {/* Subtle inner glow */}
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  {/* Icon with refined accent */}
+                  <div className="mb-6 relative">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-zinc-800/80 to-zinc-900/80 border border-zinc-700/50 flex items-center justify-center group-hover:from-amber-900/30 group-hover:to-amber-950/30 group-hover:border-amber-800/30 transition-all duration-300 shadow-lg">
+                      <Icon className="w-6 h-6 text-zinc-400 group-hover:text-amber-500/90 transition-colors" />
                     </div>
                   </div>
 
                   {/* Content */}
-                  <h3 className="text-xl font-semibold text-white mb-3">
+                  <h3 className="text-xl font-semibold text-white mb-3 relative">
                     {feature.title}
                   </h3>
                   
-                  <p className="text-zinc-500 leading-relaxed font-light">
+                  <p className="text-zinc-500 leading-relaxed font-light relative">
                     {feature.description}
                   </p>
                 </div>
