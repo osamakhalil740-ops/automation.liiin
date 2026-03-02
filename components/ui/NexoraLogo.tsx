@@ -21,29 +21,70 @@ export default function NexoraLogo({ size = 'md', showText = true, className = '
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      {/* Premium Icon with Gradient */}
-      <div className={`${sizes[size]} flex-shrink-0`}>
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Premium Logo Icon - High-end, Modern, Scalable */}
+      <div className={`${sizes[size]} flex-shrink-0 relative`}>
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
           <defs>
-            <linearGradient id="nexora-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#f59e0b" />
-              <stop offset="50%" stopColor="#d97706" />
-              <stop offset="100%" stopColor="#b45309" />
+            {/* Premium Amber Gradient */}
+            <linearGradient id="nexora-logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#fbbf24" />
+              <stop offset="50%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#d97706" />
             </linearGradient>
+            
+            {/* Glow Filter */}
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
           </defs>
           
-          {/* Modern "N" Shape */}
-          <path 
-            d="M 8 24 L 8 8 L 11 8 L 21 20 L 21 8 L 24 8 L 24 24 L 21 24 L 11 12 L 11 24 Z" 
-            fill="url(#nexora-gradient)"
+          {/* Outer Ring - Premium Frame */}
+          <circle 
+            cx="20" 
+            cy="20" 
+            r="18" 
+            stroke="url(#nexora-logo-gradient)" 
+            strokeWidth="2" 
+            fill="none"
+            opacity="0.6"
           />
           
-          {/* Subtle glow effect */}
+          {/* Inner Ring */}
+          <circle 
+            cx="20" 
+            cy="20" 
+            r="13" 
+            stroke="url(#nexora-logo-gradient)" 
+            strokeWidth="1.5" 
+            fill="none"
+            opacity="0.8"
+          />
+          
+          {/* Stylized "N" - Modern & Bold */}
           <path 
-            d="M 8 24 L 8 8 L 11 8 L 21 20 L 21 8 L 24 8 L 24 24 L 21 24 L 11 12 L 11 24 Z" 
-            fill="url(#nexora-gradient)"
-            opacity="0.3"
-            filter="blur(3px)"
+            d="M 14 26 L 14 14 L 16.5 14 L 23.5 22 L 23.5 14 L 26 14 L 26 26 L 23.5 26 L 16.5 18 L 16.5 26 Z" 
+            fill="url(#nexora-logo-gradient)"
+            filter="url(#glow)"
+          />
+          
+          {/* Accent Dots - Premium Detail */}
+          <circle cx="20" cy="7" r="1.5" fill="#fbbf24" opacity="0.9" />
+          <circle cx="33" cy="20" r="1.5" fill="#f59e0b" opacity="0.9" />
+          <circle cx="20" cy="33" r="1.5" fill="#d97706" opacity="0.9" />
+          <circle cx="7" cy="20" r="1.5" fill="#fbbf24" opacity="0.9" />
+          
+          {/* Subtle Background Glow */}
+          <circle 
+            cx="20" 
+            cy="20" 
+            r="18" 
+            fill="url(#nexora-logo-gradient)"
+            opacity="0.1"
+            filter="url(#glow)"
           />
         </svg>
       </div>
