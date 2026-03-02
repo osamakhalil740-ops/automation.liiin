@@ -4,14 +4,10 @@ import React from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import { ArrowRight, Check } from 'lucide-react';
-import AnimatedBackground from './AnimatedBackground';
-import Premium3DEffects from './Premium3DEffects';
 
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Premium 3D Effects Layer - floating elements */}
-      <Premium3DEffects />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 relative">
         <div className="max-w-4xl mx-auto text-center">
