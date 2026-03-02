@@ -69,17 +69,18 @@ export default function Navigation() {
               ))}
             </div>
 
-            {/* Refined Desktop CTA with Premium Accent */}
+            {/* Premium Desktop CTA with Enhanced Amber Accent */}
             <div className="hidden md:flex items-center gap-4">
               <Link
                 href="/login"
-                className="text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+                className="text-sm font-medium text-zinc-400 hover:text-amber-400 transition-colors"
               >
                 Sign In
               </Link>
               <Link href="/login">
-                <button className="px-6 py-2.5 bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-amber-900/30 hover:shadow-xl hover:shadow-amber-900/50">
-                  Get Started
+                <button className="group relative px-6 py-2.5 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:via-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-xl shadow-amber-600/30 hover:shadow-xl hover:shadow-amber-500/50 overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
+                  <span className="relative z-10">Get Started</span>
                 </button>
               </Link>
             </div>
@@ -179,7 +180,7 @@ export default function Navigation() {
                   </Link>
                 </motion.div>
 
-                {/* Get Started Button with Premium Accent */}
+                {/* Get Started Button with Enhanced Premium Accent */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -187,7 +188,7 @@ export default function Navigation() {
                   className="pt-4"
                 >
                   <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                    <button className="w-full px-6 py-4 bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all shadow-lg shadow-amber-900/30">
+                    <button className="w-full px-6 py-4 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:via-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all shadow-xl shadow-amber-600/30">
                       Get Started
                     </button>
                   </Link>

@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { MessageSquare, Target, TrendingUp, Shield, Zap, PenTool } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
+import Premium3DEffects from './Premium3DEffects';
 
 const features = [
   {
@@ -58,6 +59,8 @@ export default function Features() {
     <section id="features" className="relative py-32 px-4 overflow-hidden bg-[#0a0a0a]">
       {/* Premium Animated Background */}
       <AnimatedBackground />
+      {/* Premium 3D Effects Layer */}
+      <Premium3DEffects />
 
       <div className="max-w-7xl mx-auto relative">
         {/* Refined Section Header */}
