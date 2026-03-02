@@ -119,15 +119,30 @@ async function extractPostData(postElement: any): Promise<PostData | null> {
             }
         }
 
-        // Extract post URL
+        // Extract post URL - Try multiple methods to get the actual post link
         let postUrl = 'unknown';
         try {
-            const permalink = await postElement.$('a[href*="/feed/update/"]');
-            if (permalink) {
-                postUrl = await permalink.getAttribute('href') || 'unknown';
+            // Method 1: Look for post timestamp link (most reliable)
+            const timestampLink = await postElement.$('a.feed-shared-actor__sub-description-link, a[href*="/feed/update/"], a.app-aware-link[href*="activity"]');
+            if (timestampLink) {
+                const href = await timestampLink.getAttribute('href');
+                if (href) {
+                    // Clean and normalize the URL
+                    postUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
+                    // Remove query parameters for cleaner URL
+                    postUrl = postUrl.split('?')[0];
+                }
+            }
+            
+            // Method 2: Try to find URN in data attributes
+            if (postUrl === 'unknown') {
+                const urnAttr = await postElement.getAttribute('data-urn');
+                if (urnAttr && urnAttr.includes('activity')) {
+                    postUrl = `https://www.linkedin.com/feed/update/${urnAttr}/`;
+                }
             }
         } catch (e) {
-            // URL extraction failed, continue anyway
+            console.log(`      ⚠️ Could not extract post URL: ${e}`);
         }
 
         const likes = parseInt(likesText.replace(/[^0-9]/g, '')) || 0;
@@ -280,53 +295,87 @@ async function postComment(postElement: any, commentText: string, page: Page, po
         }
 
         await submitBtn.hover();
-        await sleep(300 + Math.random() * 300); // Reduced from 500-1000ms
+        await sleep(300 + Math.random() * 300);
+        
+        console.log(`   📤 Clicking submit button...`);
         await submitBtn.click();
-        await sleep(3000); // Wait longer for comment to appear in DOM
+        
+        // CRITICAL: Wait and VERIFY the comment actually appears
+        console.log(`   ⏳ Waiting for comment to appear on LinkedIn...`);
+        await sleep(3000);
 
-        console.log(`   ✅ Comment posted!`);
-        await broadcastAction('✅ Comment posted successfully!');
-
-        // Step 5: Try to capture the comment URL
+        // Step 5: VERIFY comment was actually posted by checking if it appears
         let commentUrl: string | undefined = undefined;
+        let verified = false;
+        
         try {
-            // Wait for the comment to appear in the comments section
+            // Wait a bit more for LinkedIn to process
             await sleep(2000);
             
-            // LinkedIn comment URLs are typically in format:
-            // https://www.linkedin.com/feed/update/urn:li:activity:XXXXX/comments/
-            // Or can be found in the newly posted comment element
+            console.log(`   🔍 Verifying comment appears in comments section...`);
             
-            // Try to find the newly posted comment (it will be the last one)
+            // Try to find the comments section and our comment
             const commentElements = await page.$$('.comments-comment-item').catch(() => []);
+            console.log(`   📊 Found ${commentElements.length} comments in section`);
+            
             if (commentElements.length > 0) {
-                const lastComment = commentElements[commentElements.length - 1];
+                // Check if our comment text appears in any of the recent comments
+                // LinkedIn adds comments at the bottom, so check the last few
+                const recentComments = commentElements.slice(-3); // Check last 3 comments
                 
-                // Try to find permalink in the comment
-                const permalink = await lastComment.$('a[href*="comments"]').catch(() => null);
-                if (permalink) {
-                    const href = await permalink.getAttribute('href');
-                    if (href) {
-                        commentUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
-                        console.log(`   🔗 Captured comment URL: ${commentUrl}`);
+                for (const commentEl of recentComments) {
+                    try {
+                        const commentTextEl = await commentEl.$('.comments-comment-item__main-content, .comments-comment-item-content, [dir="ltr"]');
+                        if (commentTextEl) {
+                            const displayedText = await commentTextEl.textContent();
+                            
+                            // Check if our comment text appears (partial match is ok)
+                            const ourTextSnippet = commentText.substring(0, 50).toLowerCase();
+                            if (displayedText && displayedText.toLowerCase().includes(ourTextSnippet)) {
+                                verified = true;
+                                console.log(`   ✅ VERIFIED: Comment appears on LinkedIn!`);
+                                
+                                // Try to get the comment permalink
+                                const permalink = await commentEl.$('a[href*="comments"], a.comment-permalink').catch(() => null);
+                                if (permalink) {
+                                    const href = await permalink.getAttribute('href');
+                                    if (href) {
+                                        commentUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
+                                        console.log(`   🔗 Captured comment URL: ${commentUrl}`);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        continue;
                     }
                 }
             }
             
-            // Fallback: construct comment URL from post URL if we couldn't find it
+            if (!verified) {
+                console.log(`   ❌ VERIFICATION FAILED: Comment text not found in comments section`);
+                console.log(`   ⚠️  Comment may not have been posted successfully`);
+                return { success: false };
+            }
+            
+            // Fallback: construct comment URL from post URL if we couldn't find permalink
             if (!commentUrl && postUrl && postUrl.includes('/feed/update/')) {
-                // Extract the activity URN from the post URL
                 const urnMatch = postUrl.match(/urn:li:activity:(\d+)/);
                 if (urnMatch) {
                     commentUrl = `https://www.linkedin.com/feed/update/${urnMatch[0]}/`;
                     console.log(`   🔗 Constructed comment URL from post: ${commentUrl}`);
                 }
             }
-        } catch (urlError: any) {
-            console.log(`   ⚠️  Could not capture comment URL: ${urlError.message}`);
-            // Non-fatal - comment was posted successfully
+            
+        } catch (verifyError: any) {
+            console.log(`   ❌ Verification error: ${verifyError.message}`);
+            console.log(`   ⚠️  Cannot confirm if comment was posted - marking as FAILED`);
+            return { success: false };
         }
 
+        console.log(`   ✅ Comment successfully posted and verified!`);
+        await broadcastAction('✅ Comment posted and verified on LinkedIn!');
         return { success: true, commentUrl };
 
     } catch (error: any) {
@@ -614,9 +663,12 @@ async function runPipelineForUser(userId: string, sessionCookie: string, setting
             const selectedComment = availableComments[Math.floor(Math.random() * availableComments.length)];
             const commentSource = keyword.comments.length > 0 ? 'Keyword-specific' : 'General pool';
             
-            console.log(`\n   💬 [COMMENT] Selected from ${commentSource}:`);
-            console.log(`      "${selectedComment.text.substring(0, 80)}..."`);
-            console.log(`      (${selectedComment.text.length} characters)`);
+            console.log(`\n   💬 [COMMENT] Selection:`);
+            console.log(`      • Keyword: "${keyword.keyword}"`);
+            console.log(`      • Source: ${commentSource}`);
+            console.log(`      • Comment: "${selectedComment.text.substring(0, 80)}..."`);
+            console.log(`      • Length: ${selectedComment.text.length} characters`);
+            console.log(`      • Times used: ${selectedComment.timesUsed || 0}`);
 
             // STEP 11: ✅ POST THE COMMENT - GUARANTEED ATTEMPT
             console.log(`\n   🚀 [POSTING] Attempting to post comment...`);
