@@ -8,8 +8,8 @@ import CTA from '@/components/landing/CTA';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen relative bg-[#0a0a0a]">
-      {/* CONTENT LAYERS - Professional SaaS Structure */}
+    <div className="min-h-screen relative bg-white">
+      {/* Clean, Minimal SaaS Structure */}
       <Navigation />
       <Hero />
       <SocialProof />

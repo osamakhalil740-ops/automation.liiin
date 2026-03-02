@@ -3,8 +3,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { MessageSquare, Target, TrendingUp, Shield, Zap, PenTool } from 'lucide-react';
-import AnimatedBackground from './AnimatedBackground';
-import Premium3DEffects from './Premium3DEffects';
 
 const features = [
   {
@@ -50,28 +48,28 @@ const container = {
 };
 
 const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 }
+  hidden: { opacity: 0 },
+  show: { opacity: 1 }
 };
 
 export default function Features() {
   return (
-    <section id="features" className="relative py-32 px-4 overflow-hidden">
+    <section id="features" className="relative py-32 px-4 overflow-hidden bg-white">
 
       <div className="max-w-7xl mx-auto relative">
         {/* Refined Section Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.4 }}
           className="text-center mb-20"
         >
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-white">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-gray-900">
             Everything You Need
           </h2>
           
-          <p className="text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed font-light">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed font-light">
             Professional automation that builds authority, generates leads, 
             and grows your network.
           </p>
@@ -82,7 +80,7 @@ export default function Features() {
           variants={container}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, margin: '-100px' }}
+          viewport={{ once: true }}
           className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
           {features.map((feature, index) => {
@@ -93,24 +91,22 @@ export default function Features() {
                 variants={item}
                 className="group relative"
               >
-                {/* Layered Card with Glass Effect and Depth */}
-                <div className="h-full bg-zinc-900/40 border border-zinc-800/50 rounded-2xl p-8 hover:bg-zinc-900/60 hover:border-zinc-700/50 transition-all duration-300 backdrop-blur-sm shadow-xl shadow-black/20 hover:shadow-2xl hover:shadow-black/30 hover:-translate-y-1">
-                  {/* Subtle inner glow */}
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                {/* Clean Card with Minimal Design */}
+                <div className="h-full bg-white border border-gray-200 rounded-2xl p-8 hover:border-gray-300 transition-colors duration-200">
                   
-                  {/* Icon with refined accent */}
+                  {/* Icon with clean styling */}
                   <div className="mb-6 relative">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-zinc-800/80 to-zinc-900/80 border border-zinc-700/50 flex items-center justify-center group-hover:from-amber-900/30 group-hover:to-amber-950/30 group-hover:border-amber-800/30 transition-all duration-300 shadow-lg">
-                      <Icon className="w-6 h-6 text-zinc-400 group-hover:text-amber-500/90 transition-colors" />
+                    <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
+                      <Icon className="w-6 h-6 text-gray-600" />
                     </div>
                   </div>
 
                   {/* Content */}
-                  <h3 className="text-xl font-semibold text-white mb-3 relative">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3 relative">
                     {feature.title}
                   </h3>
                   
-                  <p className="text-zinc-500 leading-relaxed font-light relative">
+                  <p className="text-gray-600 leading-relaxed font-light relative">
                     {feature.description}
                   </p>
                 </div>

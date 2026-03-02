@@ -34,15 +34,15 @@ export default function Navigation() {
 
   return (
     <>
-      {/* Elegant Dark Navigation */}
+      {/* Clean Light Navigation */}
       <motion.nav
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4 }}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ${
           isScrolled 
-            ? 'bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-zinc-800/50' 
-            : 'bg-transparent border-b border-zinc-800/30'
+            ? 'bg-white/95 backdrop-blur-xl border-b border-gray-200' 
+            : 'bg-white/80 backdrop-blur-sm border-b border-gray-100'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -62,60 +62,40 @@ export default function Navigation() {
                 <a
                   key={link.href}
                   href={link.href}
-                  className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   {link.label}
                 </a>
               ))}
             </div>
 
-            {/* Premium Desktop CTA with Enhanced Amber Accent */}
+            {/* Clean Desktop CTA */}
             <div className="hidden md:flex items-center gap-4">
               <Link
                 href="/login"
-                className="text-sm font-medium text-zinc-400 hover:text-amber-400 transition-colors"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
               >
                 Sign In
               </Link>
               <Link href="/login">
-                <button className="group relative px-6 py-2.5 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:via-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-xl shadow-amber-600/30 hover:shadow-xl hover:shadow-amber-500/50 overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
-                  <span className="relative z-10">Get Started</span>
+                <button className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition-colors duration-200">
+                  Get Started
                 </button>
               </Link>
             </div>
 
             {/* Mobile Menu Button with Animation */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
+            <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden relative p-2 text-gray-300 hover:text-white transition-colors focus:outline-none"
+              className="md:hidden relative p-2 text-gray-600 hover:text-gray-900 transition-colors focus:outline-none"
               aria-label="Toggle mobile menu"
             >
-              <AnimatePresence mode="wait">
-                {isMobileMenuOpen ? (
-                  <motion.div
-                    key="close"
-                    initial={{ rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <X className="w-6 h-6" />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="menu"
-                    initial={{ rotate: 90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Menu className="w-6 h-6" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.button>
+              {isMobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
           </div>
         </div>
       </motion.nav>
@@ -130,7 +110,7 @@ export default function Navigation() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-40 md:hidden bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-40 md:hidden bg-black/20 backdrop-blur-sm"
               onClick={() => setIsMobileMenuOpen(false)}
             />
 
@@ -140,7 +120,7 @@ export default function Navigation() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-20 right-0 bottom-0 z-50 w-80 md:hidden bg-zinc-900/95 border-l border-zinc-800/50 shadow-2xl overflow-y-auto"
+              className="fixed top-20 right-0 bottom-0 z-50 w-80 md:hidden bg-white border-l border-gray-200 shadow-2xl overflow-y-auto"
             >
               <div className="p-6 space-y-2">
                 {/* Navigation Links */}
@@ -148,63 +128,44 @@ export default function Navigation() {
                   { href: '#features', label: 'Features' },
                   { href: '#how-it-works', label: 'How It Works' },
                   { href: '#pricing', label: 'Pricing' },
-                ].map((link, index) => (
-                  <motion.a
+                ].map((link) => (
+                  <a
                     key={link.href}
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="block py-3 px-4 text-base font-medium text-zinc-400 hover:bg-zinc-800/50 hover:text-white rounded-xl transition-all"
+                    className="block py-3 px-4 text-base font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-xl transition-colors"
                   >
                     {link.label}
-                  </motion.a>
+                  </a>
                 ))}
 
                 {/* Divider */}
-                <div className="h-px bg-zinc-800/50 my-4" />
+                <div className="h-px bg-gray-200 my-4" />
 
                 {/* Sign In Link */}
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: 0.3 }}
+                <Link
+                  href="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block py-3 px-4 text-base font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-xl transition-colors"
                 >
-                  <Link
-                    href="/login"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="block py-3 px-4 text-base font-medium text-zinc-400 hover:bg-zinc-800/50 hover:text-white rounded-xl transition-all"
-                  >
-                    Sign In
-                  </Link>
-                </motion.div>
+                  Sign In
+                </Link>
 
-                {/* Get Started Button with Enhanced Premium Accent */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.4 }}
-                  className="pt-4"
-                >
+                {/* Get Started Button - Clean Design */}
+                <div className="pt-4">
                   <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                    <button className="w-full px-6 py-4 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:via-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl transition-all shadow-xl shadow-amber-600/30">
+                    <button className="w-full px-6 py-4 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition-colors">
                       Get Started
                     </button>
                   </Link>
-                </motion.div>
+                </div>
 
                 {/* Bottom Info */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.5 }}
-                  className="pt-8 text-center"
-                >
+                <div className="pt-8 text-center">
                   <p className="text-xs text-gray-500">
                     Join 1,000+ professionals growing on LinkedIn
                   </p>
-                </motion.div>
+                </div>
               </div>
             </motion.div>
           </>

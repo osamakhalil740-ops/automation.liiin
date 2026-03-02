@@ -63,20 +63,20 @@ const plans = [
 
 export default function Pricing() {
   return (
-    <section id="pricing" className="relative py-32 px-4 overflow-hidden">
+    <section id="pricing" className="relative py-32 px-4 overflow-hidden bg-gray-50">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.4 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
             Simple, Transparent Pricing
           </h2>
-          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Choose the plan that fits your growth goals. All plans include a 14-day free trial.
           </p>
         </motion.div>
@@ -88,49 +88,49 @@ export default function Pricing() {
             return (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
                 className="group relative"
               >
                 {/* Popular Badge */}
                 {plan.popular && (
                   <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
-                    <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
+                    <div className="bg-gray-900 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
                       MOST POPULAR
                     </div>
                   </div>
                 )}
 
                 {/* Card */}
-                <div className={`h-full rounded-2xl p-8 transition-all duration-300 ${
+                <div className={`h-full rounded-2xl p-8 transition-colors duration-200 ${
                   plan.popular
-                    ? 'bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-2 border-amber-500/30 shadow-xl shadow-amber-900/20'
-                    : 'bg-zinc-900/40 border border-zinc-800/50 hover:bg-zinc-900/60 hover:border-zinc-700/50'
-                } backdrop-blur-sm`}>
+                    ? 'bg-white border-2 border-gray-900'
+                    : 'bg-white border border-gray-200 hover:border-gray-300'
+                }`}>
                   {/* Icon */}
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/20 flex items-center justify-center mb-6">
-                    <Icon className="w-6 h-6 text-amber-500" />
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center mb-6">
+                    <Icon className="w-6 h-6 text-gray-700" />
                   </div>
 
                   {/* Plan Name */}
-                  <h3 className="text-2xl font-bold text-white mb-2">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
                     {plan.name}
                   </h3>
 
                   {/* Description */}
-                  <p className="text-zinc-400 text-sm mb-6">
+                  <p className="text-gray-600 text-sm mb-6">
                     {plan.description}
                   </p>
 
                   {/* Price */}
                   <div className="mb-6">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-5xl font-bold text-white">
+                      <span className="text-5xl font-bold text-gray-900">
                         ${plan.price}
                       </span>
-                      <span className="text-zinc-500">
+                      <span className="text-gray-500">
                         {plan.period}
                       </span>
                     </div>
@@ -138,10 +138,10 @@ export default function Pricing() {
 
                   {/* CTA Button */}
                   <Link href="/login" className="block mb-6">
-                    <button className={`w-full py-4 rounded-xl font-semibold transition-all duration-300 ${
+                    <button className={`w-full py-4 rounded-xl font-semibold transition-colors duration-200 ${
                       plan.popular
-                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white shadow-lg shadow-amber-900/30 hover:shadow-xl hover:shadow-amber-900/50'
-                        : 'bg-zinc-800/80 hover:bg-zinc-700/80 text-white border border-zinc-700/50 hover:border-amber-500/30'
+                        ? 'bg-gray-900 hover:bg-gray-800 text-white'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300'
                     }`}>
                       {plan.cta}
                     </button>
@@ -151,8 +151,8 @@ export default function Pricing() {
                   <ul className="space-y-3">
                     {plan.features.map((feature, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <Check className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <span className="text-zinc-300 text-sm">
+                        <Check className="w-5 h-5 text-gray-700 flex-shrink-0 mt-0.5" />
+                        <span className="text-gray-600 text-sm">
                           {feature}
                         </span>
                       </li>
@@ -166,14 +166,14 @@ export default function Pricing() {
 
         {/* Money Back Guarantee */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
           className="mt-16 text-center"
         >
-          <p className="text-zinc-400">
-            <span className="font-semibold text-white">30-day money-back guarantee.</span> No questions asked.
+          <p className="text-gray-600">
+            <span className="font-semibold text-gray-900">30-day money-back guarantee.</span> No questions asked.
           </p>
         </motion.div>
       </div>
