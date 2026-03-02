@@ -61,8 +61,29 @@ export async function POST(req: Request) {
         });
 
         return response;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Registration error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        
+        // Detailed error logging for debugging
+        if (error.code === 'P2002') {
+            return NextResponse.json({ error: 'User already exists' }, { status: 400 });
+        }
+        
+        if (error.code === 'P2003') {
+            return NextResponse.json({ error: 'Database constraint error. Please contact support.' }, { status: 500 });
+        }
+        
+        // Log the actual error for debugging
+        console.error('Full error details:', {
+            message: error.message,
+            code: error.code,
+            meta: error.meta,
+            stack: error.stack
+        });
+        
+        return NextResponse.json({ 
+            error: 'Internal server error',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        }, { status: 500 });
     }
 }

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Settings" ADD COLUMN IF NOT EXISTS "platformUrl" TEXT NOT NULL DEFAULT '';
