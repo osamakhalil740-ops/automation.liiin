@@ -1,661 +1,779 @@
 /**
- * NEXORA LinkedIn Automation Worker - REBUILT FOR RELIABILITY v6.0
+ * LinkedIn Automation Worker - Complete Rebuild
  * 
- * COMPLETELY REBUILT WITH:
- * ✅ Reliable LinkedIn navigation (no networkidle timeout)
- * ✅ Simple, working post selectors
- * ✅ Real comment verification (checks if comment appears)
- * ✅ Accurate reach matching (exact or closest)
- * ✅ Multi-keyword support (correct comment for each keyword)
- * ✅ No false logs (only logs real actions)
- * ✅ Graceful error handling (skips failures without breaking)
+ * Architecture:
+ * - Strict keyword-comment matching (no cross-contamination)
+ * - Transparent post selection (closest to minimum reach)
+ * - Verified success only (comment must appear in DOM)
+ * - Real-time dashboard updates (live SSE streaming)
+ * - Headed browser mode (visible automation)
  * 
- * WORKFLOW:
- * 1. User clicks "Start" button
- * 2. Worker loads keywords and comments
- * 3. For EACH keyword:
- *    - Search LinkedIn for keyword
- *    - Load posts and extract reach data
- *    - Filter by exact reach OR select closest
- *    - Post comment with verification
- *    - Log only if comment actually posted
- * 4. Complete and wait for next user action
+ * Flow:
+ * 1. Fetch active keywords with their comments
+ * 2. For each keyword:
+ *    - Search LinkedIn
+ *    - Collect posts with engagement metrics
+ *    - Filter by reach (min/max likes & comments)
+ *    - Select closest to minimum reach
+ *    - Post comment (type, submit, verify)
+ *    - Broadcast success/failure in real-time
+ * 3. Wait 2 seconds between keywords
+ * 4. Repeat cycle
  */
 
 import { chromium, Browser, Page } from 'playwright';
 import { PrismaClient } from '@prisma/client';
-import { setApiBaseUrl, setUserContext } from './lib/worker-broadcast';
+import { 
+  setUserContext, 
+  setApiBaseUrl,
+  broadcastStatus,
+  broadcastAction,
+  broadcastLog,
+  broadcastError,
+  broadcastScreenshot
+} from './lib/worker-broadcast';
 
 const prisma = new PrismaClient();
 
-function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+interface WorkerSettings {
+  userId: string;
+  linkedinSessionCookie: string;
+  platformUrl: string;
+  minLikes: number;
+  maxLikes: number;
+  minComments: number;
+  maxComments: number;
+  systemActive: boolean;
 }
 
-/**
- * Log action to database - ONLY call when action actually happened
- */
-async function logAction(userId: string, action: string, postUrl: string, comment?: string, commentUrl?: string) {
-    try {
-        await prisma.log.create({
-            data: { 
-                userId, 
-                action, 
-                postUrl,
-                comment: comment || null,
-                commentUrl: commentUrl || null
-            }
-        });
-        console.log(`   ✅ LOGGED: ${action}`);
-        if (commentUrl) {
-            console.log(`   🔗 Comment URL: ${commentUrl}`);
-        }
-    } catch (error) {
-        console.error('   ❌ Failed to log action:', error);
-    }
+interface KeywordData {
+  id: string;
+  keyword: string;
+  comments: CommentData[];
 }
 
-interface PostData {
-    element: any;
+interface CommentData {
+  id: string;
+  text: string;
+}
+
+interface PostCandidate {
+  url: string;
+  likes: number;
+  comments: number;
+  distance: number; // Distance from minimum reach
+}
+
+interface ProcessingResult {
+  success: boolean;
+  keyword: string;
+  commentText?: string;
+  postUrl?: string;
+  commentUrl?: string;
+  reason?: string;
+  selectedPost?: {
     likes: number;
     comments: number;
-    postUrl: string;
+  };
 }
 
-/**
- * Extract post metrics - WITH MULTIPLE FALLBACK SELECTORS
- */
-async function extractPostData(postElement: any): Promise<PostData | null> {
-    try {
-        // Get likes count - Try multiple selectors
-        let likes = 0;
-        const likeSelectors = [
-            '.social-details-social-counts__reactions-count',
-            '.social-details-social-counts__reactions',
-            'button[aria-label*="reaction"] span',
-            '.social-details-social-counts__item--with-social-proof'
-        ];
-        
-        for (const selector of likeSelectors) {
-            try {
-                const likesEl = await postElement.$(selector);
-                if (likesEl) {
-                    const text = await likesEl.textContent();
-                    const parsed = parseInt(text?.replace(/[^0-9]/g, '') || '0');
-                    if (parsed > 0) {
-                        likes = parsed;
-                        break;
-                    }
-                }
-            } catch (e) {
-                continue;
-            }
+// ============================================================================
+// WORKER STATE
+// ============================================================================
+
+let browser: Browser | null = null;
+let page: Page | null = null;
+let isRunning = false;
+let currentUserId: string | null = null;
+
+// ============================================================================
+// MAIN WORKER LOOP
+// ============================================================================
+
+async function main() {
+  console.log('\n🚀 LinkedIn Automation Worker - Starting...\n');
+
+  try {
+    // Initialize browser
+    await initializeBrowser();
+
+    // Main loop
+    while (isRunning) {
+      try {
+        // Fetch active user settings
+        const settings = await getActiveUserSettings();
+
+        if (!settings) {
+          console.log('⏸️  No active user found. Waiting...');
+          await sleep(10000); // Wait 10 seconds
+          continue;
         }
 
-        // Get comments count - Try multiple selectors
-        let comments = 0;
-        const commentSelectors = [
-            '.social-details-social-counts__comments',
-            'button[aria-label*="comment"] span',
-            '.social-details-social-counts__item:has-text("comment")'
-        ];
-        
-        for (const selector of commentSelectors) {
-            try {
-                const commentsEl = await postElement.$(selector);
-                if (commentsEl) {
-                    const text = await commentsEl.textContent();
-                    const parsed = parseInt(text?.replace(/[^0-9]/g, '') || '0');
-                    if (parsed > 0) {
-                        comments = parsed;
-                        break;
-                    }
-                }
-            } catch (e) {
-                continue;
-            }
+        // Set user context for broadcasts
+        currentUserId = settings.userId;
+        setUserContext(settings.userId);
+        if (settings.platformUrl) {
+          setApiBaseUrl(settings.platformUrl);
         }
 
-        // Get post URL - Try multiple methods
-        let postUrl = 'unknown';
-        const urlSelectors = [
-            'a.feed-shared-actor__sub-description-link',
-            'a[href*="/feed/update/"]',
-            'a.app-aware-link[href*="activity"]',
-            'a[href*="urn:li:activity"]'
-        ];
-        
-        for (const selector of urlSelectors) {
-            try {
-                const linkEl = await postElement.$(selector);
-                if (linkEl) {
-                    const href = await linkEl.getAttribute('href');
-                    if (href && (href.includes('activity') || href.includes('update'))) {
-                        postUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
-                        postUrl = postUrl.split('?')[0];
-                        break;
-                    }
-                }
-            } catch (e) {
-                continue;
-            }
+        // Authenticate LinkedIn session
+        const authenticated = await authenticateLinkedIn(settings.linkedinSessionCookie);
+        if (!authenticated) {
+          await broadcastError('LinkedIn authentication failed. Please update your session cookie.');
+          await sleep(60000); // Wait 1 minute before retry
+          continue;
         }
 
-        console.log(`         DEBUG: Extracted - ${likes} likes, ${comments} comments, URL: ${postUrl.substring(0, 50)}...`);
-        return { element: postElement, likes, comments, postUrl };
-    } catch (error) {
-        console.log(`         DEBUG: Failed to extract post data: ${error}`);
-        return null;
-    }
-}
+        await broadcastStatus('RUNNING', { message: 'Worker is active and processing keywords' });
 
-/**
- * Scroll and collect posts - WITH MULTIPLE SELECTORS AND DEBUG
- */
-async function collectPosts(page: Page): Promise<PostData[]> {
-    const allPosts: PostData[] = [];
-    const seenUrls = new Set<string>();
+        // Fetch active keywords with their comments
+        const keywords = await getActiveKeywords(settings.userId);
 
-    console.log(`   📜 Scrolling to collect posts...`);
-
-    for (let i = 0; i < 5; i++) {
-        console.log(`      Scroll ${i + 1}/5...`);
-        
-        // Try multiple post selectors
-        const postSelectors = [
-            '.feed-shared-update-v2',
-            '.feed-shared-update-v2__description-wrapper',
-            'div[data-id^="urn:li:activity"]',
-            '.occludable-update'
-        ];
-        
-        let postElements: any[] = [];
-        for (const selector of postSelectors) {
-            postElements = await page.$$(selector).catch(() => []);
-            if (postElements.length > 0) {
-                console.log(`      Found ${postElements.length} posts with selector: ${selector}`);
-                break;
-            }
-        }
-        
-        if (postElements.length === 0) {
-            console.log(`      ⚠️ No posts found on this scroll`);
-        }
-        
-        // Extract data
-        for (const postEl of postElements) {
-            const data = await extractPostData(postEl);
-            if (data && data.postUrl !== 'unknown' && !seenUrls.has(data.postUrl)) {
-                seenUrls.add(data.postUrl);
-                allPosts.push(data);
-                console.log(`      ✅ Post: ${data.likes} likes, ${data.comments} comments`);
-            }
+        if (keywords.length === 0) {
+          console.log('⏸️  No active keywords found. Waiting...');
+          await broadcastLog('No active keywords found. Add keywords to start automation.');
+          await sleep(30000); // Wait 30 seconds
+          continue;
         }
 
-        // Scroll
-        if (i < 4) {
-            await page.mouse.wheel(0, 1000);
-            await sleep(1500);
-        }
-    }
+        console.log(`\n📋 Found ${keywords.length} active keyword(s) to process\n`);
 
-    console.log(`   ✅ Collected ${allPosts.length} unique posts`);
-    return allPosts;
-}
-
-/**
- * Post comment and VERIFY it appears - WITH MULTIPLE SELECTOR FALLBACKS
- */
-async function postCommentWithVerification(
-    postElement: any, 
-    commentText: string, 
-    page: Page
-): Promise<{ success: boolean, commentUrl?: string }> {
-    try {
-        console.log(`   💬 Attempting to post comment...`);
-
-        // Step 1: Click comment button - Try multiple selectors
-        console.log(`   🔍 Looking for comment button...`);
-        const commentBtnSelectors = [
-            'button[aria-label*="Comment"]',
-            '.comment-button',
-            'button.comment',
-            '[data-control-name="comment"]',
-            'button[class*="comment"]'
-        ];
-
-        let commentBtn = null;
-        for (const selector of commentBtnSelectors) {
-            commentBtn = await postElement.$(selector).catch(() => null);
-            if (commentBtn) {
-                console.log(`   ✅ Comment button found: ${selector}`);
-                break;
-            }
-        }
-
-        if (!commentBtn) {
-            console.log(`   ❌ Comment button not found (tried ${commentBtnSelectors.length} selectors)`);
-            return { success: false };
-        }
-
-        await commentBtn.scrollIntoViewIfNeeded();
-        await sleep(500);
-        await commentBtn.click();
-        console.log(`   ✅ Clicked comment button`);
-        await sleep(2000); // Increased wait for editor to appear
-
-        // Step 2: Find editor and type - Try multiple selectors
-        console.log(`   🔍 Looking for comment editor...`);
-        const editorSelectors = [
-            '.ql-editor[contenteditable="true"]',
-            '[contenteditable="true"].ql-editor',
-            '.comments-comment-box__text-editor',
-            'div[role="textbox"]',
-            '[contenteditable="true"]'
-        ];
-
-        let editor = null;
-        for (const selector of editorSelectors) {
-            editor = await postElement.$(selector).catch(() => null);
-            if (editor) {
-                console.log(`   ✅ Editor found: ${selector}`);
-                break;
-            }
-        }
-
-        if (!editor) {
-            console.log(`   ❌ Comment editor not found (tried ${editorSelectors.length} selectors)`);
-            return { success: false };
-        }
-
-        await editor.click();
-        await sleep(500);
-        console.log(`   ⌨️  Typing comment...`);
-        await editor.type(commentText, { delay: 60 });
-        await sleep(1000);
-
-        // Step 3: Click submit - Try multiple selectors
-        console.log(`   🔍 Looking for submit button...`);
-        const submitSelectors = [
-            '.comments-comment-box__submit-button--cr',
-            '.comments-comment-box__submit-button',
-            'button[type="submit"]',
-            'button.comments-comment-box-comment__button',
-            'button[class*="submit"]'
-        ];
-
-        let submitBtn = null;
-        for (const selector of submitSelectors) {
-            submitBtn = await postElement.$(selector).catch(() => null);
-            if (submitBtn) {
-                const isEnabled = await submitBtn.isEnabled().catch(() => false);
-                if (isEnabled) {
-                    console.log(`   ✅ Submit button found: ${selector}`);
-                    break;
-                } else {
-                    submitBtn = null; // Not enabled, keep looking
-                }
-            }
-        }
-
-        if (!submitBtn) {
-            console.log(`   ❌ Submit button not found or disabled (tried ${submitSelectors.length} selectors)`);
-            return { success: false };
-        }
-
-        console.log(`   📤 Submitting comment...`);
-        await submitBtn.click();
-        
-        // Step 4: WAIT and VERIFY
-        console.log(`   ⏳ Waiting 5 seconds for LinkedIn to process...`);
-        await sleep(5000); // Increased from 4s
-
-        console.log(`   🔍 Verifying comment appears...`);
-        
-        // Check if our comment text appears in the page
-        const pageText = await page.textContent('body');
-        const snippet = commentText.substring(0, 30).toLowerCase();
-        
-        if (pageText && pageText.toLowerCase().includes(snippet)) {
-            console.log(`   ✅ VERIFIED: Comment text found on page!`);
-            return { success: true };
-        } else {
-            console.log(`   ❌ VERIFICATION FAILED: Comment text NOT found on page`);
-            console.log(`   🔍 Searched for: "${snippet}"`);
-            return { success: false };
-        }
-
-    } catch (error: any) {
-        console.log(`   ❌ Error posting comment: ${error.message}`);
-        console.log(`   Stack: ${error.stack}`);
-        return { success: false };
-    }
-}
-
-/**
- * Process one keyword - SIMPLIFIED AND RELIABLE
- */
-async function processKeyword(
-    page: Page,
-    keyword: any,
-    generalComments: any[],
-    settings: any,
-    userId: string
-): Promise<boolean> {
-    const keywordText = keyword.keyword;
-    const targetReach = keyword.targetReach || 1000;
-
-    console.log(`\n   ╔══════════════════════════════════════════════════╗`);
-    console.log(`   ║ Processing: "${keywordText}"`);
-    console.log(`   ╚══════════════════════════════════════════════════╝`);
-    console.log(`   🎯 Target reach: ${targetReach} likes`);
-
-    // Step 1: Search LinkedIn
-    const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keywordText)}`;
-    console.log(`   🔎 Searching LinkedIn...`);
-
-    try {
-        // FIXED: Use 'load' instead of 'networkidle' to avoid timeout
-        await page.goto(searchUrl, { waitUntil: 'load', timeout: 30000 });
-        await sleep(2000); // Wait for content to load
-        console.log(`   ✅ Page loaded`);
-    } catch (error: any) {
-        console.log(`   ❌ Navigation failed: ${error.message}`);
-        await logAction(userId, `❌ Failed to search for "${keywordText}": Navigation error`, searchUrl);
-        return false;
-    }
-
-    // Step 2: Wait for posts - Try multiple selectors
-    console.log(`   ⏳ Waiting for posts to load...`);
-    const postSelectors = [
-        '.feed-shared-update-v2',
-        '.feed-shared-update-v2__description-wrapper',
-        'div[data-id^="urn:li:activity"]',
-        '.occludable-update'
-    ];
-    
-    let postsFound = false;
-    for (const selector of postSelectors) {
-        try {
-            await page.waitForSelector(selector, { timeout: 6000 });
-            console.log(`   ✅ Posts loaded (selector: ${selector})`);
-            postsFound = true;
+        // Process each keyword
+        for (const keyword of keywords) {
+          // Check if still active
+          const stillActive = await isSystemStillActive(settings.userId);
+          if (!stillActive) {
+            console.log('⏸️  System deactivated by user. Stopping...');
+            await broadcastStatus('STOPPED', { message: 'Worker stopped by user' });
+            isRunning = false;
             break;
-        } catch (error) {
-            console.log(`   ⚠️ Selector ${selector} not found, trying next...`);
-            continue;
+          }
+
+          // Process single keyword
+          const result = await processKeyword(keyword, settings);
+
+          // Log result to database
+          await logResult(result, settings.userId);
+
+          // Broadcast result
+          if (result.success) {
+            await broadcastAction('COMMENT_POSTED', {
+              keyword: result.keyword,
+              postUrl: result.postUrl,
+              commentUrl: result.commentUrl,
+              commentText: result.commentText,
+              selectedPost: result.selectedPost
+            });
+          } else {
+            await broadcastError(`Failed to process keyword "${result.keyword}": ${result.reason}`);
+          }
+
+          // Wait 2 seconds before next keyword
+          await sleep(2000);
         }
-    }
-    
-    if (!postsFound) {
-        console.log(`   ❌ No posts found after trying all selectors`);
-        await logAction(userId, `❌ No posts found for "${keywordText}"`, searchUrl);
-        return false;
-    }
 
-    // Step 3: Collect posts
-    const posts = await collectPosts(page);
-    if (posts.length === 0) {
-        console.log(`   ❌ No posts collected`);
-        await logAction(userId, `❌ No posts collected for "${keywordText}"`, searchUrl);
-        return false;
+        console.log('\n✅ Cycle complete. Starting next cycle...\n');
+        await sleep(5000); // 5 seconds between cycles
+
+      } catch (error: any) {
+        console.error('❌ Error in worker loop:', error);
+        await broadcastError(`Worker error: ${error.message}`);
+        await sleep(30000); // Wait 30 seconds on error
+      }
     }
 
-    // Step 4: Filter by reach
-    const minLikes = settings.minLikes || 0;
-    const maxLikes = settings.maxLikes || 999999;
-    const minComments = settings.minComments || 0;
-    const maxComments = settings.maxComments || 999999;
-
-    console.log(`   🔍 Filtering: ${minLikes}-${maxLikes} likes, ${minComments}-${maxComments} comments`);
-
-    const matchingPosts = posts.filter(p => 
-        p.likes >= minLikes && p.likes <= maxLikes &&
-        p.comments >= minComments && p.comments <= maxComments
-    );
-
-    console.log(`   ✅ ${matchingPosts.length}/${posts.length} posts match criteria`);
-
-    // Step 5: Select best post (exact match or closest)
-    let bestPost: PostData | null = null;
-    let bestDiff = Infinity;
-    const postsToConsider = matchingPosts.length > 0 ? matchingPosts : posts;
-
-    for (const post of postsToConsider) {
-        const diff = Math.abs(post.likes - targetReach);
-        if (diff < bestDiff) {
-            bestDiff = diff;
-            bestPost = post;
-        }
-    }
-
-    if (!bestPost) {
-        console.log(`   ❌ No post selected (this should never happen)`);
-        return false;
-    }
-
-    console.log(`   ✅ Selected post: ${bestPost.likes} likes, ${bestPost.comments} comments`);
-    console.log(`   📏 Distance from target: ${bestDiff} likes`);
-
-    // Step 6: Select comment
-    const availableComments = keyword.comments.length > 0 ? keyword.comments : generalComments;
-    if (availableComments.length === 0) {
-        console.log(`   ❌ No comments available for "${keywordText}"`);
-        await logAction(userId, `❌ No comments configured for "${keywordText}"`, bestPost.postUrl);
-        return false;
-    }
-
-    const selectedComment = availableComments[Math.floor(Math.random() * availableComments.length)];
-    const commentSource = keyword.comments.length > 0 ? 'Keyword-specific' : 'General pool';
-    
-    console.log(`   💬 Comment source: ${commentSource}`);
-    console.log(`   💬 Comment: "${selectedComment.text.substring(0, 60)}..."`);
-
-    // Step 7: Post comment with verification
-    const result = await postCommentWithVerification(bestPost.element, selectedComment.text, page);
-
-    if (result.success) {
-        console.log(`\n   ╔══════════════════════════════════════════════════╗`);
-        console.log(`   ║ ✅ COMMENT POSTED AND VERIFIED!`);
-        console.log(`   ╚══════════════════════════════════════════════════╝`);
-
-        // Log success
-        await logAction(
-            userId,
-            `✅ Commented on post for "${keywordText}" (${bestPost.likes} likes)`,
-            bestPost.postUrl,
-            selectedComment.text,
-            result.commentUrl
-        );
-
-        // Update counters
-        await prisma.keyword.update({
-            where: { id: keyword.id },
-            data: { matches: { increment: 1 } }
-        });
-
-        await prisma.comment.update({
-            where: { id: selectedComment.id },
-            data: { timesUsed: { increment: 1 } }
-        });
-
-        return true;
-    } else {
-        console.log(`\n   ╔══════════════════════════════════════════════════╗`);
-        console.log(`   ║ ❌ COMMENT POSTING FAILED`);
-        console.log(`   ╚══════════════════════════════════════════════════╝`);
-
-        // Log failure
-        await logAction(
-            userId,
-            `❌ Failed to comment on post for "${keywordText}" (${bestPost.likes} likes)`,
-            bestPost.postUrl,
-            selectedComment.text
-        );
-
-        return false;
-    }
+  } catch (error: any) {
+    console.error('❌ Fatal worker error:', error);
+    await broadcastError(`Fatal error: ${error.message}`);
+  } finally {
+    await cleanup();
+  }
 }
 
-/**
- * Main worker function
- */
-async function runWorker(userId: string, sessionCookie: string, settings: any) {
-    console.log(`\n════════════════════════════════════════════════════`);
-    console.log(`👤 User: ${userId.slice(0, 8)}...`);
-    console.log(`════════════════════════════════════════════════════`);
+// ============================================================================
+// KEYWORD PROCESSING
+// ============================================================================
 
-    // Set user context
-    const sessionId = `session-${Date.now()}`;
-    setUserContext(userId, sessionId);
+async function processKeyword(
+  keywordData: KeywordData,
+  settings: WorkerSettings
+): Promise<ProcessingResult> {
+  const { keyword, comments } = keywordData;
 
-    // Load keywords and comments
-    const keywords = await prisma.keyword.findMany({
-        where: { userId, active: true },
-        include: { comments: true }
-    });
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`📍 Processing Keyword: "${keyword}"`);
+  console.log(`${'='.repeat(80)}\n`);
 
-    const generalComments = await prisma.comment.findMany({
-        where: { userId, keywordId: null }
-    });
-
-    console.log(`   📋 Keywords: ${keywords.length}`);
-    console.log(`   💬 General comments: ${generalComments.length}`);
-
-    if (keywords.length === 0) {
-        console.log(`   ❌ No keywords configured`);
-        await logAction(userId, '❌ No keywords configured', 'N/A');
-        return;
+  try {
+    // Validate keyword has comments
+    if (comments.length === 0) {
+      console.log(`⚠️  No comments found for keyword "${keyword}". Skipping.`);
+      return {
+        success: false,
+        keyword,
+        reason: 'No comments associated with this keyword'
+      };
     }
 
-    // Launch browser
-    console.log(`\n   🚀 Launching browser...`);
-    const browser = await chromium.launch({ 
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    // Broadcast action
+    await broadcastAction('PROCESSING_KEYWORD', { keyword, commentCount: comments.length });
+
+    // Step 1: Search LinkedIn for keyword
+    console.log(`🔍 Searching LinkedIn for: "${keyword}"`);
+    await broadcastLog(`Searching LinkedIn for keyword: "${keyword}"`);
+    
+    const posts = await searchLinkedInPosts(keyword);
+
+    if (posts.length === 0) {
+      console.log(`⚠️  No posts found for keyword "${keyword}". Skipping.`);
+      await broadcastLog(`No posts found for keyword "${keyword}"`, 'warn');
+      return {
+        success: false,
+        keyword,
+        reason: 'No posts found on LinkedIn for this keyword'
+      };
+    }
+
+    console.log(`✅ Found ${posts.length} posts`);
+
+    // Step 2: Filter posts by reach criteria
+    console.log(`\n📊 Filtering posts by reach criteria:`);
+    console.log(`   Min Likes: ${settings.minLikes} | Max Likes: ${settings.maxLikes}`);
+    console.log(`   Min Comments: ${settings.minComments} | Max Comments: ${settings.maxComments}`);
+
+    const filteredPosts = filterPostsByReach(posts, settings);
+
+    // Step 3: Select best post (closest to minimum reach)
+    const selectedPost = selectBestPost(filteredPosts, posts, settings);
+
+    if (!selectedPost) {
+      console.log(`⚠️  No suitable post found after filtering. Skipping.`);
+      await broadcastLog(`No posts matched reach criteria for "${keyword}"`, 'warn');
+      return {
+        success: false,
+        keyword,
+        reason: 'No posts matched the reach criteria'
+      };
+    }
+
+    console.log(`\n✅ Selected Post:`);
+    console.log(`   URL: ${selectedPost.url}`);
+    console.log(`   Likes: ${selectedPost.likes} | Comments: ${selectedPost.comments}`);
+    console.log(`   Distance from minimum: ${selectedPost.distance.toFixed(2)}`);
+
+    // Step 4: Select random comment from keyword's comments
+    const randomComment = comments[Math.floor(Math.random() * comments.length)];
+    console.log(`\n💬 Selected Comment: "${randomComment.text.substring(0, 50)}..."`);
+
+    // Step 5: Post comment and verify
+    await broadcastLog(`Posting comment on selected post...`);
+    const commentResult = await postAndVerifyComment(selectedPost.url, randomComment.text);
+
+    if (!commentResult.success) {
+      console.log(`❌ Failed to post comment: ${commentResult.reason}`);
+      return {
+        success: false,
+        keyword,
+        commentText: randomComment.text,
+        postUrl: selectedPost.url,
+        reason: commentResult.reason
+      };
+    }
+
+    console.log(`\n✅ SUCCESS! Comment posted and verified`);
+    console.log(`   Post URL: ${selectedPost.url}`);
+    console.log(`   Comment URL: ${commentResult.commentUrl}`);
+
+    // Update comment usage count
+    await prisma.comment.update({
+      where: { id: randomComment.id },
+      data: { timesUsed: { increment: 1 } }
     });
 
-    const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    });
+    return {
+      success: true,
+      keyword,
+      commentText: randomComment.text,
+      postUrl: selectedPost.url,
+      commentUrl: commentResult.commentUrl,
+      selectedPost: {
+        likes: selectedPost.likes,
+        comments: selectedPost.comments
+      }
+    };
 
-    await context.addCookies([{
-        name: 'li_at',
-        value: sessionCookie,
-        domain: '.linkedin.com',
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'None'
+  } catch (error: any) {
+    console.error(`❌ Error processing keyword "${keyword}":`, error);
+    return {
+      success: false,
+      keyword,
+      reason: error.message
+    };
+  }
+}
+
+// ============================================================================
+// LINKEDIN AUTOMATION FUNCTIONS
+// ============================================================================
+
+async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
+  if (!page) throw new Error('Browser page not initialized');
+
+  const posts: PostCandidate[] = [];
+
+  try {
+    // Navigate to LinkedIn search
+    const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword)}&sortBy=date_posted`;
+    console.log(`   Navigating to: ${searchUrl}`);
+    
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await sleep(3000); // Wait for dynamic content
+
+    // Take screenshot
+    await broadcastScreenshot(page, `Searching for: ${keyword}`);
+
+    // Extract posts from search results
+    const postElements = await page.$$('div.feed-shared-update-v2');
+    console.log(`   Found ${postElements.length} post elements on page`);
+
+    for (const postElement of postElements) {
+      try {
+        // Extract post URL
+        const linkElement = await postElement.$('a.app-aware-link[href*="/feed/update/"]');
+        if (!linkElement) continue;
+
+        const href = await linkElement.getAttribute('href');
+        if (!href) continue;
+
+        const postUrl = href.includes('http') ? href : `https://www.linkedin.com${href}`;
+
+        // Extract engagement metrics
+        const socialCountsElement = await postElement.$('ul.social-details-social-counts');
+        
+        let likes = 0;
+        let comments = 0;
+
+        if (socialCountsElement) {
+          const likesText = await socialCountsElement.$eval(
+            'button[aria-label*="reaction"]',
+            (el) => el.textContent?.trim() || '0'
+          ).catch(() => '0');
+
+          const commentsText = await socialCountsElement.$eval(
+            'button[aria-label*="comment"]',
+            (el) => el.textContent?.trim() || '0'
+          ).catch(() => '0');
+
+          likes = parseEngagementNumber(likesText);
+          comments = parseEngagementNumber(commentsText);
+        }
+
+        posts.push({
+          url: postUrl,
+          likes,
+          comments,
+          distance: 0 // Will be calculated later
+        });
+
+      } catch (error) {
+        // Skip invalid posts
+        continue;
+      }
+    }
+
+    console.log(`   Extracted ${posts.length} valid posts with engagement data`);
+
+  } catch (error: any) {
+    console.error(`   ❌ Error searching LinkedIn:`, error.message);
+  }
+
+  return posts;
+}
+
+async function postAndVerifyComment(postUrl: string, commentText: string): Promise<{ success: boolean; commentUrl?: string; reason?: string }> {
+  if (!page) throw new Error('Browser page not initialized');
+
+  try {
+    console.log(`\n📝 Posting comment to: ${postUrl}`);
+
+    // Navigate to post
+    await page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await sleep(2000);
+
+    await broadcastScreenshot(page, 'Navigated to post');
+
+    // Click comment button
+    const commentButton = await page.$('button[aria-label*="Comment"]');
+    if (!commentButton) {
+      return { success: false, reason: 'Comment button not found' };
+    }
+
+    await commentButton.click();
+    await sleep(1000);
+
+    // Wait for comment editor
+    const editorSelector = 'div.ql-editor[contenteditable="true"]';
+    await page.waitForSelector(editorSelector, { timeout: 10000 });
+
+    const editor = await page.$(editorSelector);
+    if (!editor) {
+      return { success: false, reason: 'Comment editor not found' };
+    }
+
+    // Type comment (character by character for visibility)
+    console.log(`   Typing comment...`);
+    await editor.click();
+    await page.keyboard.type(commentText, { delay: 50 }); // 50ms delay between characters
+    await sleep(1000);
+
+    await broadcastScreenshot(page, 'Comment typed');
+
+    // Submit comment
+    const submitButton = await page.$('button.comments-comment-box__submit-button:not([disabled])');
+    if (!submitButton) {
+      return { success: false, reason: 'Submit button not found or disabled' };
+    }
+
+    console.log(`   Submitting comment...`);
+    await submitButton.click();
+    await sleep(3000); // Wait for LinkedIn to process
+
+    await broadcastScreenshot(page, 'Comment submitted');
+
+    // Verify comment appears in DOM
+    console.log(`   Verifying comment in DOM...`);
+    const verificationResult = await verifyCommentInDOM(commentText);
+
+    if (!verificationResult.found) {
+      return { success: false, reason: 'Comment not found in DOM after submission' };
+    }
+
+    console.log(`   ✅ Comment verified in DOM!`);
+
+    // Extract comment URL (permalink)
+    const commentUrl = await extractCommentUrl(commentText);
+
+    return {
+      success: true,
+      commentUrl: commentUrl || postUrl // Fallback to post URL if permalink not found
+    };
+
+  } catch (error: any) {
+    console.error(`   ❌ Error posting comment:`, error.message);
+    return { success: false, reason: error.message };
+  }
+}
+
+async function verifyCommentInDOM(commentText: string): Promise<{ found: boolean }> {
+  if (!page) return { found: false };
+
+  try {
+    // Wait a bit for DOM to update
+    await sleep(2000);
+
+    // Look for comment text in the comments section
+    const commentElements = await page.$$('div.comments-comment-item');
+
+    for (const commentElement of commentElements) {
+      const text = await commentElement.textContent();
+      if (text && text.includes(commentText)) {
+        return { found: true };
+      }
+    }
+
+    return { found: false };
+
+  } catch (error) {
+    return { found: false };
+  }
+}
+
+async function extractCommentUrl(commentText: string): Promise<string | null> {
+  if (!page) return null;
+
+  try {
+    // Find comment element
+    const commentElements = await page.$$('div.comments-comment-item');
+
+    for (const commentElement of commentElements) {
+      const text = await commentElement.textContent();
+      if (text && text.includes(commentText)) {
+        // Look for permalink button
+        const permalinkButton = await commentElement.$('button[aria-label*="permalink"]');
+        if (permalinkButton) {
+          const href = await permalinkButton.getAttribute('data-link');
+          if (href) return href;
+        }
+      }
+    }
+
+    return null;
+
+  } catch (error) {
+    return null;
+  }
+}
+
+// ============================================================================
+// POST FILTERING & SELECTION
+// ============================================================================
+
+function filterPostsByReach(posts: PostCandidate[], settings: WorkerSettings): PostCandidate[] {
+  return posts.filter(post => {
+    const likesMatch = post.likes >= settings.minLikes && post.likes <= settings.maxLikes;
+    const commentsMatch = post.comments >= settings.minComments && post.comments <= settings.maxComments;
+    return likesMatch && commentsMatch;
+  });
+}
+
+function selectBestPost(
+  filteredPosts: PostCandidate[],
+  allPosts: PostCandidate[],
+  settings: WorkerSettings
+): PostCandidate | null {
+  // If we have exact matches, pick randomly
+  if (filteredPosts.length > 0) {
+    console.log(`   ✅ Found ${filteredPosts.length} posts matching exact reach criteria`);
+    const randomPost = filteredPosts[Math.floor(Math.random() * filteredPosts.length)];
+    randomPost.distance = 0;
+    return randomPost;
+  }
+
+  // No exact matches - find closest to minimum reach
+  console.log(`   ⚠️  No exact matches. Finding closest to minimum reach...`);
+
+  const targetLikes = settings.minLikes;
+  const targetComments = settings.minComments;
+
+  // Calculate distance from minimum reach for all posts
+  const postsWithDistance = allPosts.map(post => {
+    const likesDistance = Math.abs(post.likes - targetLikes);
+    const commentsDistance = Math.abs(post.comments - targetComments);
+    
+    // Euclidean distance
+    const distance = Math.sqrt(likesDistance ** 2 + commentsDistance ** 2);
+
+    return { ...post, distance };
+  });
+
+  // Sort by distance (closest first)
+  postsWithDistance.sort((a, b) => a.distance - b.distance);
+
+  // Prefer posts slightly above minimum over posts below minimum
+  const closestPost = postsWithDistance.find(post => 
+    post.likes >= targetLikes && post.comments >= targetComments
+  ) || postsWithDistance[0];
+
+  if (closestPost) {
+    console.log(`   ✅ Selected closest post (distance: ${closestPost.distance.toFixed(2)})`);
+  }
+
+  return closestPost || null;
+}
+
+// ============================================================================
+// BROWSER MANAGEMENT
+// ============================================================================
+
+async function initializeBrowser() {
+  console.log('🌐 Initializing browser (headed mode)...');
+  
+  browser = await chromium.launch({
+    headless: false, // VISIBLE BROWSER
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled'
+    ]
+  });
+
+  page = await browser.newPage({
+    viewport: { width: 1280, height: 720 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  });
+
+  // Remove automation flags
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  });
+
+  isRunning = true;
+  console.log('✅ Browser initialized\n');
+}
+
+async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
+  if (!page) return false;
+
+  try {
+    console.log('🔐 Authenticating LinkedIn session...');
+
+    // Set session cookie
+    await page.context().addCookies([{
+      name: 'li_at',
+      value: sessionCookie,
+      domain: '.linkedin.com',
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None'
     }]);
 
-    const page = await context.newPage();
-    console.log(`   ✅ Browser ready`);
+    // Navigate to LinkedIn to verify session
+    await page.goto('https://www.linkedin.com/feed', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await sleep(3000);
 
-    let successCount = 0;
+    // Check if logged in (look for feed or profile element)
+    const isLoggedIn = await page.$('div.feed-shared-update-v2') !== null ||
+                       await page.$('button[aria-label*="Start a post"]') !== null;
 
-    try {
-        // Process each keyword
-        for (let i = 0; i < keywords.length; i++) {
-            const keyword = keywords[i];
-            const success = await processKeyword(page, keyword, generalComments, settings, userId);
-            
-            if (success) {
-                successCount++;
-            }
-
-            // Wait between keywords
-            if (i < keywords.length - 1) {
-                console.log(`\n   ⏳ Waiting 3 seconds before next keyword...`);
-                await sleep(3000);
-            }
-        }
-
-        // Summary
-        console.log(`\n   ╔══════════════════════════════════════════════════╗`);
-        console.log(`   ║ COMPLETE`);
-        console.log(`   ╚══════════════════════════════════════════════════╝`);
-        console.log(`   📊 Keywords processed: ${keywords.length}`);
-        console.log(`   ✅ Comments posted: ${successCount}`);
-        console.log(`   📈 Success rate: ${((successCount / keywords.length) * 100).toFixed(0)}%`);
-
-        await logAction(userId, `Cycle complete: ${successCount}/${keywords.length} comments posted`, 'COMPLETE');
-
-    } finally {
-        await browser.close();
-        console.log(`   🔒 Browser closed\n`);
+    if (isLoggedIn) {
+      console.log('✅ LinkedIn authentication successful\n');
+      await broadcastScreenshot(page, 'Authenticated on LinkedIn');
+      return true;
+    } else {
+      console.log('❌ LinkedIn authentication failed\n');
+      return false;
     }
+
+  } catch (error: any) {
+    console.error('❌ Authentication error:', error.message);
+    return false;
+  }
 }
 
-/**
- * Main orchestrator
- */
-async function runOrchestrator() {
-    console.log('\n════════════════════════════════════════════════════');
-    console.log('  🚀 NEXORA Worker v6.0 - REBUILT FOR RELIABILITY');
-    console.log('  📅 ' + new Date().toLocaleString());
-    console.log('════════════════════════════════════════════════════\n');
+async function cleanup() {
+  console.log('\n🧹 Cleaning up...');
+  
+  if (page) {
+    await page.close().catch(() => {});
+    page = null;
+  }
 
-    // Reset all systemActive flags on startup
-    console.log('🧹 Resetting active sessions...');
-    const resetResult = await prisma.settings.updateMany({
-        where: { systemActive: true },
-        data: { systemActive: false }
+  if (browser) {
+    await browser.close().catch(() => {});
+    browser = null;
+  }
+
+  await prisma.$disconnect();
+  
+  console.log('✅ Cleanup complete\n');
+}
+
+// ============================================================================
+// DATABASE FUNCTIONS
+// ============================================================================
+
+async function getActiveUserSettings(): Promise<WorkerSettings | null> {
+  const settings = await prisma.settings.findFirst({
+    where: { systemActive: true },
+    include: { user: true }
+  });
+
+  if (!settings) return null;
+
+  return {
+    userId: settings.userId,
+    linkedinSessionCookie: settings.linkedinSessionCookie,
+    platformUrl: settings.platformUrl,
+    minLikes: settings.minLikes,
+    maxLikes: settings.maxLikes,
+    minComments: settings.minComments,
+    maxComments: settings.maxComments,
+    systemActive: settings.systemActive
+  };
+}
+
+async function getActiveKeywords(userId: string): Promise<KeywordData[]> {
+  const keywords = await prisma.keyword.findMany({
+    where: {
+      userId,
+      active: true
+    },
+    include: {
+      comments: {
+        where: {
+          userId // Only get comments belonging to same user
+        }
+      }
+    }
+  });
+
+  return keywords.map(k => ({
+    id: k.id,
+    keyword: k.keyword,
+    comments: k.comments.map(c => ({
+      id: c.id,
+      text: c.text
+    }))
+  }));
+}
+
+async function isSystemStillActive(userId: string): Promise<boolean> {
+  const settings = await prisma.settings.findUnique({
+    where: { userId }
+  });
+
+  return settings?.systemActive || false;
+}
+
+async function logResult(result: ProcessingResult, userId: string) {
+  try {
+    await prisma.log.create({
+      data: {
+        userId,
+        action: result.success ? 'COMMENT_POSTED' : 'FAILED',
+        postUrl: result.postUrl || 'N/A',
+        comment: result.commentText || null,
+        commentUrl: result.commentUrl || null
+      }
     });
-    console.log(`✅ Reset ${resetResult.count} active sessions\n`);
-
-    while (true) {
-        try {
-            // Check for active users
-            const activeSettings = await prisma.settings.findMany({
-                where: {
-                    systemActive: true,
-                    NOT: { linkedinSessionCookie: '' }
-                }
-            });
-
-            if (activeSettings.length === 0) {
-                console.log('⏸️  Standby - waiting for user to press Start...');
-                await sleep(10000);
-                continue;
-            }
-
-            console.log(`\n✅ User action detected - ${activeSettings.length} user(s)\n`);
-
-            // Configure platform URL
-            if (activeSettings[0].platformUrl) {
-                setApiBaseUrl(activeSettings[0].platformUrl.trim());
-            }
-
-            // Process each user
-            for (const userSettings of activeSettings) {
-                if (!userSettings.userId) continue;
-
-                try {
-                    await runWorker(
-                        userSettings.userId,
-                        userSettings.linkedinSessionCookie,
-                        userSettings
-                    );
-                } catch (error: any) {
-                    console.error(`❌ Error processing user: ${error.message}`);
-                    await logAction(userSettings.userId, `❌ Worker error: ${error.message}`, 'ERROR');
-                }
-            }
-
-            // Wait before next cycle
-            console.log(`\n⏳ Cycle complete. Waiting for next user action...\n`);
-            await sleep(60000);
-
-        } catch (error: any) {
-            console.error('❌ Orchestrator error:', error.message);
-            await sleep(60000);
-        }
-    }
+  } catch (error) {
+    console.error('Failed to log result:', error);
+  }
 }
 
-// Start
-runOrchestrator().catch(error => {
-    console.error('❌ Fatal error:', error);
-    process.exit(1);
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function parseEngagementNumber(text: string): number {
+  const cleaned = text.replace(/,/g, '').trim();
+  const match = cleaned.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
+}
+
+// ============================================================================
+// GRACEFUL SHUTDOWN
+// ============================================================================
+
+process.on('SIGTERM', async () => {
+  console.log('\n⚠️  SIGTERM received. Shutting down gracefully...');
+  isRunning = false;
+  await cleanup();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('\n⚠️  SIGINT received. Shutting down gracefully...');
+  isRunning = false;
+  await cleanup();
+  process.exit(0);
+});
+
+// ============================================================================
+// START WORKER
+// ============================================================================
+
+main().catch(async (error) => {
+  console.error('❌ Fatal error:', error);
+  await cleanup();
+  process.exit(1);
 });

@@ -39,43 +39,58 @@ export default function LiveWorkerViewer() {
     fetchUserId();
   }, []);
 
-  // Poll for new events every 2 seconds
+  // Real-time SSE connection for live updates
   useEffect(() => {
     if (!userId) return; // Wait for userId to be loaded
 
-    const pollEvents = async () => {
-      try {
-        // Filter events by current user
-        const response = await fetch(`/api/worker-events?count=50&userId=${encodeURIComponent(userId)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setEvents(data.events || []);
-          setIsConnected(true);
+    console.log('🔌 Connecting to SSE stream...');
+    
+    // Create EventSource for SSE
+    const eventSource = new EventSource(`/api/stream?userId=${encodeURIComponent(userId)}`);
 
-          // Update screenshot if available
-          const latestScreenshot = data.events
-            .reverse()
-            .find((e: WorkerEvent) => e.type === 'screenshot' && e.data.screenshot);
-          
-          if (latestScreenshot) {
-            setCurrentScreenshot(latestScreenshot.data.screenshot || null);
-          }
-        } else {
-          setIsConnected(false);
+    eventSource.onopen = () => {
+      console.log('✅ SSE connection established');
+      setIsConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Handle different event types
+        if (data.type === 'connected') {
+          console.log('📡 Connected to live stream');
+          return;
         }
+
+        // Add new event to the list
+        setEvents((prev) => {
+          const updated = [...prev, data];
+          // Keep only last 100 events
+          return updated.slice(-100);
+        });
+
+        // Update screenshot if this is a screenshot event
+        if (data.type === 'screenshot' && data.data?.screenshot) {
+          setCurrentScreenshot(data.data.screenshot);
+        }
+
       } catch (error) {
-        console.error('Failed to fetch events:', error);
-        setIsConnected(false);
+        console.error('Error parsing SSE event:', error);
       }
     };
 
-    // Initial fetch
-    pollEvents();
+    eventSource.onerror = (error) => {
+      console.error('❌ SSE connection error:', error);
+      setIsConnected(false);
+      eventSource.close();
+    };
 
-    // Poll every 2 seconds
-    const interval = setInterval(pollEvents, 2000);
-
-    return () => clearInterval(interval);
+    // Cleanup on unmount
+    return () => {
+      console.log('🔌 Closing SSE connection');
+      eventSource.close();
+    };
   }, [userId]);
 
   // Auto-scroll to bottom when new events arrive
@@ -141,7 +156,10 @@ export default function LiveWorkerViewer() {
         </div>
 
         <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
-          <span>Updates every 2 seconds</span>
+          <span className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+            {isConnected ? 'Live connected' : 'Disconnected'}
+          </span>
           <span>{events.length} events captured</span>
         </div>
       </div>
