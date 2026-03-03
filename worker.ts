@@ -788,6 +788,7 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
             var href = link.getAttribute('href') || '';
             if (href.indexOf('http') !== 0) href = 'https://www.linkedin.com' + href;
             href = href.split('?')[0].split('#')[0];
+            href = href.replace(/\/$/, ''); // Remove trailing slash
             
             // STRICT VALIDATION: Only accept real post URLs
             if (!isValidPostUrl(href)) {
