@@ -685,16 +685,30 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
 
     // Navigate to LinkedIn to verify session
     console.log('   Navigating to LinkedIn feed...');
-    await page.goto('https://www.linkedin.com/feed', {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000
-    });
-    await sleep(5000); // Wait for page to fully load
+    try {
+      await page.goto('https://www.linkedin.com/feed', {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+      });
 
-    // Check if logged in (look for feed or profile element)
-    const isLoggedIn = await page.$('div.feed-shared-update-v2') !== null ||
-      await page.$('button[aria-label*="Start a post"]') !== null ||
-      await page.$('button.share-box-feed-entry__trigger') !== null;
+      console.log('   Waiting for page elements to stabilize...');
+      // Wait for either the global nav (logged in) or the login form (failed)
+      await Promise.race([
+        page.waitForSelector('#global-nav', { timeout: 15000 }).catch(() => null),
+        page.waitForSelector('input[name="session_key"]', { timeout: 15000 }).catch(() => null),
+        page.waitForSelector('div.feed-shared-update-v2', { timeout: 15000 }).catch(() => null)
+      ]);
+    } catch (e: any) {
+      console.log(`   ⚠️  Navigation warning: ${e.message}`);
+    }
+
+    // Check if logged in (more robust checks)
+    const currentUrl = page.url();
+    const hasGlobalNav = await page.$('#global-nav') !== null;
+    const hasFeedPosts = await page.$('div.feed-shared-update-v2') !== null;
+    const hasStartPost = await page.$('button[aria-label*="Start a post"]') !== null;
+
+    const isLoggedIn = (currentUrl.includes('/feed') && (hasGlobalNav || hasFeedPosts)) || hasGlobalNav || hasStartPost;
 
     if (isLoggedIn) {
       console.log('✅ LinkedIn authentication successful\n');
@@ -702,14 +716,15 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
       return true;
     } else {
       console.log('❌ LinkedIn authentication failed (not logged in)\n');
+      console.log(`   Current URL: ${currentUrl}`);
 
       // Take screenshot for debugging
       await broadcastScreenshot(page, 'Authentication failed');
 
       // Check if we're on login page
       const onLoginPage = await page.$('input[name="session_key"]') !== null;
-      if (onLoginPage) {
-        console.log('   Reason: Redirected to login page (invalid cookie)');
+      if (onLoginPage || currentUrl.includes('login') || currentUrl.includes('checkpoint')) {
+        console.log('   Reason: Redirected to login/checkpoint page (invalid cookie or security check)');
       }
 
       return false;
