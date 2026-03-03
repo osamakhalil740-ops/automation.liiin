@@ -347,50 +347,70 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
 
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Wait up to 10 seconds for any post-like container to appear
+    // Scroll down slightly to trigger LinkedIn's lazy loader
+    await page.evaluate(() => window.scrollTo(0, 600));
+    await sleep(1500);
+    await page.evaluate(() => window.scrollTo(0, 1200));
+    await sleep(1500);
+
+    // Wait up to 10s for any post link to appear — INCLUDE /posts/ which is the primary format  
     await Promise.race([
+      page.waitForSelector('a[href*="/posts/"]', { timeout: 10000 }).catch(() => null),
       page.waitForSelector('a[href*="/feed/update/"]', { timeout: 10000 }).catch(() => null),
-      page.waitForSelector('a[href*="/activity/"]', { timeout: 10000 }).catch(() => null),
-      page.waitForSelector('.search-results-container', { timeout: 10000 }).catch(() => null),
+      page.waitForSelector('a[href*="activity"]', { timeout: 10000 }).catch(() => null),
     ]);
-    // Allow dynamic JS rendering to settle
-    await sleep(3000);
+    await sleep(2000);
 
-    await broadcastScreenshot(page, `Searching LinkedIn for: ${keyword}`);
+    await broadcastScreenshot(page, `Search results for: ${keyword}`);
 
-    // Run extraction entirely inside the browser — immune to Playwright element handle issues
+    // Run extraction entirely inside browser context
     const rawPosts = await page.evaluate(() => {
       const results: { url: string; likes: number; comments: number }[] = [];
       const seen = new Set<string>();
 
-      // Find all post article containers (LinkedIn wraps each post in a <li> or <div>)
-      // Grab every anchor that points to a feed update or activity
-      const allLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>(
-        'a[href*="/feed/update/"], a[href*="/activity/"]'
-      ));
+      // LinkedIn search posts use THREE main URL patterns:
+      // 1. /posts/username_slug-activity-XXXXXX/ 
+      // 2. /feed/update/urn:li:activity:XXXXXX/
+      // 3. /feed/update/urn:li:ugcPost:XXXXXX/
+      const allLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'));
 
-      for (const link of allLinks) {
+      // Filter to only post links
+      const postLinks = allLinks.filter(a => {
+        const h = a.getAttribute('href') || '';
+        return (
+          (h.includes('/posts/') && h.includes('activity')) ||
+          h.includes('/feed/update/urn:li:activity') ||
+          h.includes('/feed/update/urn:li:ugcPost') ||
+          h.includes('/feed/update/urn:li:share')
+        );
+      });
+
+      // Diagnostic: log total links found on page
+      (window as any).__debugLinkCount = allLinks.length;
+      (window as any).__debugPostLinkCount = postLinks.length;
+
+      for (const link of postLinks) {
         let href = link.getAttribute('href') || '';
         if (!href) continue;
 
-        // Normalize
         if (!href.startsWith('http')) href = 'https://www.linkedin.com' + href;
-        href = href.split('?')[0]; // Strip query params
+        href = href.split('?')[0];
 
         if (seen.has(href)) continue;
         seen.add(href);
 
-        // Walk up the DOM to find the post container
+        // Walk up to find the post container (up to 15 levels)
         let container: HTMLElement | null = link;
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 15; i++) {
           container = container?.parentElement ?? null;
           if (!container) break;
-          // Stop at a likely post-level element
           if (
             container.tagName === 'LI' ||
+            container.tagName === 'ARTICLE' ||
             container.classList.contains('occludable-update') ||
             container.classList.contains('feed-shared-update-v2') ||
-            container.hasAttribute('data-view-name')
+            container.hasAttribute('data-view-name') ||
+            container.getAttribute('data-entity-urn') !== null
           ) break;
         }
 
@@ -398,38 +418,41 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
         let comments = 0;
 
         if (container) {
-          // Find all buttons in the container and inspect them
-          const buttons = Array.from(container.querySelectorAll('button'));
-          for (const btn of buttons) {
-            const label = (btn.getAttribute('aria-label') || '').toLowerCase();
-            const text = (btn.textContent || '').replace(/[^0-9kKmM.,]/g, '').trim();
+          const parse = (t: string): number => {
+            if (!t) return 0;
+            const clean = t.toLowerCase().replace(/,/g, '.').trim();
+            if (clean.includes('k')) return Math.round(parseFloat(clean) * 1000);
+            if (clean.includes('m')) return Math.round(parseFloat(clean) * 1000000);
+            const n = parseInt(clean.replace(/[^0-9]/g, ''));
+            return isNaN(n) ? 0 : n;
+          };
 
-            const parse = (t: string): number => {
-              if (!t) return 0;
-              const clean = t.toLowerCase().replace(',', '.');
-              if (clean.includes('k')) return Math.round(parseFloat(clean) * 1000);
-              if (clean.includes('m')) return Math.round(parseFloat(clean) * 1000000);
-              return parseInt(clean) || 0;
-            };
+          // Check all buttons and spans with aria-labels
+          const allBtns = Array.from(container.querySelectorAll<HTMLElement>('button, span[aria-label]'));
+          for (const el of allBtns) {
+            const label = (el.getAttribute('aria-label') || '').toLowerCase();
+            const innerText = (el.textContent || '').trim();
 
-            if (label.includes('reaction') || label.includes('like')) {
-              likes = parse(text) || likes;
+            // Reactions/likes: look for explicit number in label like "234 reactions"
+            const reactionMatch = label.match(/(\d[\d,\.]*[km]?)\s*(reaction|like)/i);
+            if (reactionMatch) {
+              likes = parse(reactionMatch[1]) || likes;
             }
-            if (label.includes('comment')) {
-              comments = parse(text) || comments;
+
+            // Comments: look for "45 comments"
+            const commentMatch = label.match(/(\d[\d,\.]*[km]?)\s*comment/i);
+            if (commentMatch) {
+              comments = parse(commentMatch[1]) || comments;
+            }
+
+            // Fallback: button text when label is generic
+            if (likes === 0 && (label.includes('reaction') || label.includes('like'))) {
+              likes = parse(innerText) || likes;
+            }
+            if (comments === 0 && label.includes('comment')) {
+              comments = parse(innerText) || comments;
             }
           }
-
-          // Also check span/text nodes near social-details
-          const socialSpans = container.querySelectorAll<HTMLElement>(
-            '.social-details-social-counts button, [class*="social-count"] button'
-          );
-          socialSpans.forEach(btn => {
-            const label = (btn.getAttribute('aria-label') || '').toLowerCase();
-            const num = parseInt((btn.textContent || '').replace(/[^0-9]/g, '')) || 0;
-            if (label.includes('reaction') || label.includes('like')) likes = likes || num;
-            if (label.includes('comment')) comments = comments || num;
-          });
         }
 
         results.push({ url: href, likes, comments });
@@ -438,8 +461,26 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
       return results;
     });
 
-    console.log(`   Extracted ${rawPosts.length} valid posts with engagement data`);
-    rawPosts.slice(0, 3).forEach((p, i) => {
+    // Rich diagnostic output
+    const diagInfo = await page.evaluate(() => ({
+      totalLinks: (window as any).__debugLinkCount || 0,
+      postLinks: (window as any).__debugPostLinkCount || 0,
+      url: window.location.href
+    }));
+
+    console.log(`   📊 Page diagnostics: ${diagInfo.totalLinks} total links, ${diagInfo.postLinks} post links found`);
+    console.log(`   📍 Current URL: ${diagInfo.url}`);
+    console.log(`   Extracted ${rawPosts.length} posts with engagement data`);
+
+    if (rawPosts.length === 0) {
+      console.log(`   ⚠️  Zero posts extracted. Possible causes:`);
+      console.log(`      - LinkedIn is showing a CAPTCHA or verification page`);
+      console.log(`      - Session cookie has expired`);
+      console.log(`      - Search results are empty for this keyword`);
+      console.log(`      - LinkedIn changed their DOM structure`);
+    }
+
+    rawPosts.slice(0, 5).forEach((p, i) => {
       console.log(`   [${i + 1}] 👍 ${p.likes} | 💬 ${p.comments} | ${p.url}`);
     });
 
