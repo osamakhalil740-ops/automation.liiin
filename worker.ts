@@ -1081,7 +1081,11 @@ async function postAndVerifyComment(postUrl: string, commentText: string): Promi
 
     await broadcastScreenshot(page, 'Comment typed');
 
-    // Submit comment - try multiple selectors
+    // ============================================================================
+    // MANUAL SUBMIT MODE - PAUSE HERE AND WAIT FOR USER TO CLICK SUBMIT
+    // ============================================================================
+    
+    // Find submit button but DON'T click it - just verify it exists
     const submitSelectors = [
       'button.comments-comment-box__submit-button:not([disabled])',
       'button[type="submit"]:not([disabled])',
@@ -1107,42 +1111,106 @@ async function postAndVerifyComment(postUrl: string, commentText: string): Promi
       return { success: false, reason: 'Submit button not found or disabled' };
     }
 
-    console.log(`   📤 Submitting comment...`);
-    await submitButton.click();
-    await sleep(2000); // Initial wait
+    // PAUSE: Wait for manual submit
+    console.log('\n' + '='.repeat(80));
+    console.log('⏸️  WAITING FOR MANUAL SUBMIT');
+    console.log('='.repeat(80));
+    console.log('\n🎯 READY FOR YOU TO CLICK SUBMIT!\n');
+    console.log('📋 INSTRUCTIONS:');
+    console.log('   1. The comment has been typed in the comment box');
+    console.log('   2. The submit button is ready and enabled');
+    console.log('   3. CLICK THE "POST" BUTTON MANUALLY in the browser window');
+    console.log('   4. The worker will detect when you submit and verify the comment');
+    console.log('   5. Then it will continue to the next post automatically\n');
+    console.log(`📍 Post URL: ${postUrl}`);
+    console.log(`💬 Comment: "${commentText.substring(0, 100)}${commentText.length > 100 ? '...' : ''}"`);
+    console.log('\n⏳ Waiting for you to click submit...\n');
 
-    await broadcastScreenshot(page, 'Comment submitted - waiting for verification');
+    // Broadcast to dashboard
+    await broadcastStatus('WAITING_FOR_MANUAL_SUBMIT', {
+      message: 'Waiting for manual submit - Click the POST button in the browser',
+      postUrl: postUrl,
+      commentText: commentText.substring(0, 100)
+    });
+    await broadcastAction('WAITING_FOR_MANUAL_SUBMIT', {
+      postUrl: postUrl,
+      commentPreview: commentText.substring(0, 100) + (commentText.length > 100 ? '...' : ''),
+      instruction: 'Click the POST button in the browser window to submit the comment'
+    });
 
-    // Verify comment appears in DOM (first attempt)
-    console.log(`   🔍 Verifying comment in DOM (Attempt 1)...`);
-    let verificationResult = await verifyCommentInDOM(commentText);
+    // Poll every 2 seconds to detect if comment has been submitted
+    console.log('   🔍 Monitoring for submit action...');
+    const maxWaitTime = 5 * 60 * 1000; // Wait up to 5 minutes for user to submit
+    const checkInterval = 2000; // Check every 2 seconds
+    const startTime = Date.now();
+    let checkCount = 0;
 
-    // If not found, try reloading the page and verify again
-    if (!verificationResult.found) {
-      console.log(`   ⚠️  Comment not found on first attempt. Reloading page...`);
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-      await sleep(3000);
-      await broadcastScreenshot(page, 'Page reloaded - verifying again');
+    while (Date.now() - startTime < maxWaitTime) {
+      checkCount++;
+      await sleep(checkInterval);
+
+      // Check if comment appears in DOM (means user clicked submit)
+      const verificationResult = await verifyCommentInDOM(commentText);
       
-      console.log(`   🔍 Verifying comment in DOM (Attempt 2 after reload)...`);
-      verificationResult = await verifyCommentInDOM(commentText);
+      if (verificationResult.found) {
+        console.log(`\n✅ SUBMIT DETECTED! Comment found in DOM after ${checkCount * 2} seconds`);
+        console.log('   Comment has been successfully posted!\n');
+        console.log('='.repeat(80));
+        console.log('▶️  RESUMING AUTOMATION');
+        console.log('='.repeat(80) + '\n');
+        
+        await broadcastStatus('RUNNING', { message: 'Manual submit completed - Worker resumed' });
+        await broadcastLog('Comment submitted successfully! Continuing automation...');
+        
+        // Extract comment URL
+        const commentUrl = await extractCommentUrl(commentText);
+        
+        return {
+          success: true,
+          commentUrl: commentUrl || postUrl
+        };
+      }
+
+      // Also check if submit button disappeared (another indicator of submission)
+      const submitStillExists = await page.$(submitSelectors[0]).catch(() => null);
+      const editorStillExists = await page.$('div.ql-editor[contenteditable="true"]').catch(() => null);
       
-      if (!verificationResult.found) {
-        console.log(`   ❌ Comment still not found after reload`);
-        await broadcastScreenshot(page, 'Comment verification FAILED after reload');
-        return { success: false, reason: 'Comment not found in DOM after submission and reload - may have been blocked or failed' };
+      if (!submitStillExists && !editorStillExists) {
+        console.log(`\n✅ SUBMIT DETECTED! Comment box closed (submission detected)`);
+        await sleep(3000); // Give it time to appear in DOM
+        
+        const finalCheck = await verifyCommentInDOM(commentText);
+        if (finalCheck.found) {
+          console.log('   ✅ Comment verified in DOM!\n');
+          console.log('='.repeat(80));
+          console.log('▶️  RESUMING AUTOMATION');
+          console.log('='.repeat(80) + '\n');
+          
+          await broadcastStatus('RUNNING', { message: 'Manual submit completed - Worker resumed' });
+          
+          const commentUrl = await extractCommentUrl(commentText);
+          return {
+            success: true,
+            commentUrl: commentUrl || postUrl
+          };
+        }
+      }
+
+      // Progress indicator
+      if (checkCount % 5 === 0) {
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        console.log(`   ⏳ Still waiting... (${elapsed}s elapsed, checking every 2s)`);
       }
     }
 
-    console.log(`   ✅ Comment verified in DOM!`);
-
-    // Extract comment URL (permalink)
-    const commentUrl = await extractCommentUrl(commentText);
-
-    return {
-      success: true,
-      commentUrl: commentUrl || postUrl // Fallback to post URL if permalink not found
-    };
+    // Timeout reached - user didn't submit in 5 minutes
+    console.log('\n⚠️  Manual submit timeout (5 minutes)');
+    console.log('   Moving to next post...\n');
+    
+    await broadcastError('Manual submit timeout - User did not click submit within 5 minutes');
+    await broadcastStatus('RUNNING', { message: 'Timeout on manual submit - Continuing to next post' });
+    
+    return { success: false, reason: 'User did not click submit within 5 minutes' };
 
   } catch (error: any) {
     console.error(`   ❌ Error posting comment:`, error.message);
