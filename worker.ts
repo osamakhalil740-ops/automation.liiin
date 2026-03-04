@@ -670,8 +670,10 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
         }
 
         // --- PHASE 1: Container-based extraction (Primary Method) ---
-        // UPDATED: Modern LinkedIn selectors for content search results
+        // UPDATED: Based on actual LinkedIn HTML structure (from link.txt analysis)
         var containers = Array.from(document.querySelectorAll(
+          'li.artdeco-card, ' +                                    // NEW: Primary container (from link.txt)
+          '.feed-shared-update-v2[data-urn], ' +                   // NEW: Direct feed updates with URN
           '.reusable-search__result-container, ' +
           '.entity-result, ' +
           '[data-chameleon-result-urn], ' +
