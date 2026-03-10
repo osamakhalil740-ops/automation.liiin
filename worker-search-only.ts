@@ -217,11 +217,16 @@ async function main() {
       console.error('❌ Worker error:', error.message);
       await broadcastError(`Worker error: ${error.message}`);
       
-      // Check for CAPTCHA
-      if (await detectCaptcha()) {
-        await handleCaptcha();
+      // Check for CAPTCHA / anti-bot signals and respond based on severity
+      const detection = await detectCaptcha();
+      if (detection.level === 'hard') {
+        await handleCaptcha(detection);
+      } else if (detection.level === 'soft') {
+        console.log('⚠️ Soft anti-bot signal after error:', detection.reason);
+        await broadcastLog('Soft anti-bot signal after error. Cooling down briefly.', 'warn');
+        await sleep(180000); // 3 minute cool-down on soft signal
       } else {
-        await sleep(60000); // Wait 1 minute on error
+        await sleep(60000); // Wait 1 minute on generic error
       }
     }
   }
@@ -311,9 +316,17 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
     // Random scroll to simulate human behavior
     await humanScroll(page);
 
-    // Check for CAPTCHA
-    if (await detectCaptcha()) {
-      throw new Error('CAPTCHA detected during search');
+    // Check for CAPTCHA / anti-bot signals
+    const detection = await detectCaptcha();
+    if (detection.level === 'hard') {
+      console.log('🚨 Hard CAPTCHA / checkpoint detected during search:', detection.reason);
+      await broadcastError(`Hard CAPTCHA detected during search: ${detection.reason}`);
+      throw new Error('HARD_CAPTCHA_DETECTED_DURING_SEARCH');
+    } else if (detection.level === 'soft') {
+      console.log('⚠️ Soft anti-bot signal detected during search:', detection.reason);
+      await broadcastLog('Soft anti-bot signal detected during search. Backing off but continuing.', 'warn');
+      // Extra conservative backoff on soft signals
+      await humanDelay(60000, 120000);
     }
 
     // Extract post data
@@ -628,6 +641,10 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
     if (isAuthenticated) {
       console.log('✅ LinkedIn authentication successful\n');
       await broadcastScreenshot(page, 'Authenticated on LinkedIn');
+
+      // Warm up session with human-like browsing before searches
+      await warmUpSession();
+
       return true;
     } else {
       console.log('❌ LinkedIn authentication failed\n');
@@ -645,40 +662,118 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
 // CAPTCHA DETECTION & HANDLING
 // ============================================================================
 
-async function detectCaptcha(): Promise<boolean> {
-  if (!page) return false;
+type CaptchaLevel = 'none' | 'soft' | 'hard';
+
+interface CaptchaDetection {
+  level: CaptchaLevel;
+  reason: string;
+  url?: string;
+  title?: string;
+  snippet?: string;
+}
+
+async function detectCaptcha(): Promise<CaptchaDetection> {
+  if (!page) {
+    return { level: 'none', reason: 'no-page' };
+  }
 
   try {
-    const hasCaptcha = await page.evaluate(() => {
-      // Check for common CAPTCHA indicators
-      const captchaKeywords = [
-        'captcha', 'challenge', 'verify', 'security check',
-        'unusual activity', 'automation', 'recaptcha'
+    const info = await page.evaluate(() => {
+      const url = window.location.href;
+      const path = window.location.pathname;
+      const title = document.title || '';
+      const rawText = (document.body?.innerText || '').toLowerCase();
+      const textSnippet = rawText.slice(0, 800);
+
+      const isCheckpoint =
+        path.includes('/checkpoint') ||
+        path.includes('/authwall') ||
+        url.includes('checkpoint') ||
+        url.includes('authwall');
+
+      const hasCaptchaElement = !!document.querySelector(
+        'iframe[src*=\"captcha\"], iframe[src*=\"recaptcha\"], div[id*=\"captcha\"], div[class*=\"captcha\"]'
+      );
+
+      const strongPhrases = [
+        \"let's do a quick security check\",
+        'unusual activity on your account',
+        'to help keep your account safe',
+        'we detected suspicious activity',
+        'we’ve detected suspicious activity',
+        'to continue, please verify your identity'
       ];
 
-      const pageText = document.body.innerText.toLowerCase();
-      return captchaKeywords.some(keyword => pageText.includes(keyword));
+      const hasStrongPhrase = strongPhrases.some((phrase) =>
+        rawText.includes(phrase.toLowerCase())
+      );
+
+      return {
+        url,
+        path,
+        title,
+        textSnippet,
+        isCheckpoint,
+        hasCaptchaElement,
+        hasStrongPhrase
+      };
     });
 
-    return hasCaptcha;
-  } catch {
-    return false;
+    let level: CaptchaLevel = 'none';
+    let reason = 'no captcha indicators';
+
+    if (info.isCheckpoint || info.hasCaptchaElement) {
+      level = 'hard';
+      reason = 'checkpoint or captcha element detected';
+    } else if (info.hasStrongPhrase) {
+      level = 'soft';
+      reason = 'strong anti-bot phrase detected';
+    }
+
+    if (level !== 'none') {
+      console.log('\\n🚨 CAPTCHA / anti-bot signal detected');
+      console.log(`   URL: ${info.url}`);
+      console.log(`   Title: ${info.title}`);
+      console.log(`   Reason: ${reason}`);
+      console.log('   Snippet:', info.textSnippet?.slice(0, 200), '\\n');
+
+      await broadcastScreenshot(page, 'CAPTCHA / anti-bot signal detected').catch(() => {});
+      await broadcastLog(
+        `CAPTCHA / anti-bot signal (${level}): ${reason} at ${info.url}`,
+        level === 'hard' ? 'error' : 'warn'
+      ).catch(() => {});
+    }
+
+    return {
+      level,
+      reason,
+      url: info.url,
+      title: info.title,
+      snippet: info.textSnippet
+    };
+  } catch (err: any) {
+    console.error('detectCaptcha error:', err?.message || err);
+    return { level: 'none', reason: 'detection-error' };
   }
 }
 
-async function handleCaptcha() {
-  console.log('\n🚨 CAPTCHA DETECTED\n');
+async function handleCaptcha(detection: CaptchaDetection) {
+  console.log('\\n🚨 HARD CAPTCHA / CHECKPOINT DETECTED\\n');
   console.log('   The system has paused to avoid further detection.');
-  console.log('   Please solve the CAPTCHA manually in the browser window.');
-  console.log('   The worker will automatically resume after 2 minutes.\n');
+  console.log('   Please check the browser window for any security prompts or challenges.');
+  console.log('   A longer cool-down will be applied before resuming.\\n');
 
-  await broadcastError('⚠️ CAPTCHA detected! Please solve it manually. Worker paused for 2 minutes.');
-  
-  // Wait 2 minutes for manual intervention
-  await sleep(120000);
-  
-  console.log('⏰ Resuming worker...\n');
-  await broadcastStatus('Resuming after CAPTCHA pause');
+  await broadcastError(
+    `⚠️ Hard CAPTCHA detected (${detection.reason}). Worker entering extended cool-down.`
+  );
+
+  // Longer cool-down for hard blocks (e.g. 20 minutes)
+  const cooldownMinutes = 20;
+  await broadcastStatus(`Hard CAPTCHA cool-down for ${cooldownMinutes} minutes`);
+  await sleep(cooldownMinutes * 60 * 1000);
+
+  console.log('⏰ Exiting hard CAPTCHA cool-down. Worker will cautiously resume.\n');
+  await broadcastStatus('Exiting hard CAPTCHA cool-down. Worker will cautiously resume.');
 }
 
 // ============================================================================
@@ -717,6 +812,42 @@ async function humanScroll(page: Page) {
     
   } catch {
     // Ignore scroll errors
+  }
+}
+
+async function warmUpSession() {
+  if (!page) return;
+
+  try {
+    console.log('🧊 Warming up LinkedIn session on feed...');
+
+    // Scroll the feed a bit to look like a real user
+    await humanScroll(page);
+    await humanDelay(3000, 6000);
+
+    // Optionally open 1–2 posts or profiles in the same tab
+    const candidateLinks = await page.$$(
+      'a[href*="/feed/update/"], a[href*="/in/"]:not([href*="miniProfileUrn"])'
+    );
+
+    const maxToOpen = Math.min(2, candidateLinks.length);
+    for (let i = 0; i < maxToOpen; i++) {
+      const link = candidateLinks[i];
+      try {
+        await link.click({ button: 'left' });
+        await humanDelay(3000, 6000);
+        await humanScroll(page);
+        await humanDelay(2000, 4000);
+        await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
+        await humanDelay(2000, 4000);
+      } catch {
+        // Ignore single-link failures and continue
+      }
+    }
+
+    console.log('✅ Warm-up sequence complete.\n');
+  } catch (err: any) {
+    console.log('Warm-up sequence error (non-fatal):', err?.message || err);
   }
 }
 
