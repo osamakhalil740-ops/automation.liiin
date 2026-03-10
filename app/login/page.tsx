@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
@@ -8,7 +8,17 @@ import { MessageSquare, PenTool, Mail, Lock, Sparkles, ArrowRight, Shield } from
 import { showToast } from '@/components/ui/Toast';
 import NexoraLogo from '@/components/ui/NexoraLogo';
 
-export default function LoginPage() {
+function LoginFormFallback() {
+    return (
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#0a0a0a]">
+            <div className="w-full max-w-6xl flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            </div>
+        </div>
+    );
+}
+
+function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     // Default to registration mode when coming from "Get Started" / signup links (?mode=register)
@@ -269,5 +279,13 @@ export default function LoginPage() {
                 </div>
             </motion.div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<LoginFormFallback />}>
+            <LoginForm />
+        </Suspense>
     );
 }
