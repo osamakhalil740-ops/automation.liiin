@@ -369,9 +369,7 @@ async function processKeyword(keyword: KeywordData, settings: WorkerSettings) {
           `All ${posts.length} posts for "${keyword.keyword}" returned zero engagement. LinkedIn may not have loaded counts. Skipping fallback.`,
           'warn'
         );
-        // Save top posts anyway so the user has URLs to inspect manually
-        postsToSave = posts.slice(0, 20);
-        usedFallback = true;
+        postsToSave = []; // No strict matches and no engagement data - skip.
       } else {
         // Real engagement data exists — use closest-by-reach fallback
         console.log('⚠️  No strict matches. Double-checked: engagement data exists. Using closest-by-reach fallback.\n');
@@ -417,7 +415,7 @@ async function processKeyword(keyword: KeywordData, settings: WorkerSettings) {
 
 // ============================================================================
 // LINKEDIN SEA// Maximum number of posts to collect per keyword search
-const MAX_POSTS_PER_SEARCH = 60;
+const MAX_POSTS_PER_SEARCH = 100;
 
 async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
   if (!page) throw new Error('Browser not initialized');
@@ -442,7 +440,7 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
     // After each scroll we wait for NEW content rather than a fixed delay,
     // so fast-loading pages don't waste time.
     console.log('📜 Scrolling to load more posts...');
-    for (let round = 0; round < 7; round++) {
+    for (let round = 0; round < 15; round++) {
       // Scroll to bottom of the last visible result card (triggers infinite scroll)
       await page.evaluate(() => {
         const cards = document.querySelectorAll(
