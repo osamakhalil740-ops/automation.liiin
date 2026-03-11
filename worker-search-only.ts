@@ -328,7 +328,9 @@ async function processKeyword(keyword: KeywordData, settings: WorkerSettings) {
     await broadcastLog(`Searching for: "${keyword.keyword}"`);
 
     // Search LinkedIn
-    const posts = await searchLinkedInPosts(keyword.keyword);
+    const postsRaw = await searchLinkedInPosts(keyword.keyword);
+      // Sort by engagement descending (High Reach Priority)
+      const posts = postsRaw.sort((a, b) => (b.likes + b.comments) - (a.likes + a.comments));
 
     // Log this search for rate limit tracking
     await logSearch(settings.userId, keyword.keyword);
@@ -415,13 +417,13 @@ async function processKeyword(keyword: KeywordData, settings: WorkerSettings) {
 
 // ============================================================================
 // LINKEDIN SEA// Maximum number of posts to collect per keyword search
-const MAX_POSTS_PER_SEARCH = 100;
+const MAX_POSTS_PER_SEARCH = 150;
 
 async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
   if (!page) throw new Error('Browser not initialized');
 
   try {
-    const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword)}&datePosted=%22past-week%22&sortBy=%22date_posted%22`;
+    const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword)}`;
 
     console.log(`🔍 Navigating to search page...`);
 
@@ -579,6 +581,18 @@ async function searchLinkedInPosts(keyword: string): Promise<PostCandidate[]> {
                   if (mc) comm = parseNum(mc[1]);
                 }
               }
+            }
+          } catch(e) {}
+                    // Extract date for 6-month filtering
+          var dateText = '';
+          try {
+            var dateEl = container.querySelector('.update-components-actor__sub-description, .entity-result__simple-insight, .entity-result__caption');
+            dateText = (dateEl ? dateEl.innerText : '').toLowerCase();
+            // Filter out posts older than 6 months (7mo, 8mo, 9mo, 10mo, 11mo, 12mo, 1y, 2y, etc.)
+            if (dateText.match(/(\d+mo|[\d.]+y)/)) {
+              var m = dateText.match(/(\d+)mo/);
+              if (m && parseInt(m[1]) > 6) return; // Skip > 6 months
+              if (dateText.indexOf('y') !== -1) return; // Skip years
             }
           } catch(e) {}
           results.push({ url: url, likes: like, comments: comm });
