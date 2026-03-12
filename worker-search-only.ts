@@ -842,75 +842,88 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
   try {
     console.log('🔐 Authenticating LinkedIn session...');
 
-    // Phase 6: Sanitize cookie
     const cleanCookie = sessionCookie.trim().replace(/^["']|["']$/g, '');
 
-    // Phase 6: Establish technical context by visiting landing page first (pre-cookie)
+    // Phase 7: Visit landing page to get base cookies
     try {
-      console.log('   Establishing session context...');
-      await page.goto('https://www.linkedin.com', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+      console.log('   Establishing technical context...');
+      await page.goto('https://www.linkedin.com', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
     } catch {}
 
-    // Set LinkedIn cookie
-    await context.addCookies([{
-      name: 'li_at',
-      value: cleanCookie,
-      domain: '.linkedin.com',
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'None'
-    }]);
+    // Phase 7: Inject JSESSIONID alongside li_at to prevent redirect loops
+    // JSESSIONID is often required for valid session context
+    await context.addCookies([
+      {
+        name: 'li_at',
+        value: cleanCookie,
+        domain: '.linkedin.com',
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None'
+      },
+      {
+        name: 'JSESSIONID',
+        value: `ajax:${Math.floor(Math.random() * 1000000000000000)}`,
+        domain: '.linkedin.com',
+        path: '/',
+        httpOnly: false,
+        secure: true,
+        sameSite: 'None'
+      }
+    ]);
 
-    console.log('   Set LinkedIn session cookie');
+    console.log('   Applied authenticated cookies (li_at + JSESSIONID)');
 
-    // Navigate to feed with human-like delay
-    await humanDelay(2000, 4000);
+    await randomSleep(2000, 4000);
     
-    // Phase 6: Handle redirect loop potential by trying twice or detecting loops
+    // Phase 7: Detection of login checkpoints
     try {
-      await page.goto('https://www.linkedin.com/feed', {
-        waitUntil: 'networkidle', // Wait for redirects to settle
-        timeout: 45000
+      const response = await page.goto('https://www.linkedin.com/feed', {
+        waitUntil: 'networkidle',
+        timeout: 60000
       });
-    } catch (e) {
+
+      const finalUrl = page.url();
+      if (finalUrl.includes('/checkpoint/')) {
+        console.log('⚠️  SECURITY CHECKPOINT: LinkedIn requested manual verification (OTP/Captcha).');
+        await broadcastLog('Login blocked by LinkedIn Security Checkpoint. Manual intervention required.', 'error');
+        await broadcastScreenshot(page, 'Security Checkpoint');
+        return false;
+      }
+
+      if (finalUrl.includes('/login') && !finalUrl.includes('feed')) {
+         console.log('❌ Session Invalid: Redirected to login page.');
+         return false;
+      }
+
+    } catch (e: any) {
       if (e.message.includes('ERR_TOO_MANY_REDIRECTS')) {
-        console.log('⚠️  Detected redirect loop. Attempting recovery reset...');
-        await broadcastLog('Redirect loop detected. Cleaning and retrying...', 'warn');
-        return false; // Let workerLoop re-init browser
+        console.log('⚠️  Redirect loop detected. This usually means the session is flagged or JSESSIONID mismatch.');
+        return false; 
       }
       throw e;
     }
 
-    await humanDelay(3000, 5000);
+    await randomSleep(3000, 5000);
 
-    // Check authentication
-    const currentUrl = page.url();
     const isAuthenticated = await page.evaluate(() => {
-      if (!window.location.hostname.includes('linkedin.com')) return false;
-      if (window.location.pathname.includes('/login')) return false;
-      if (window.location.pathname.includes('/checkpoint')) return false;
-      
       const hasNav = document.querySelector('nav[aria-label="Primary Navigation"], .global-nav');
       return !!hasNav;
     });
 
     if (isAuthenticated) {
       console.log('✅ LinkedIn authentication successful\n');
-      await broadcastScreenshot(page, 'Authenticated on LinkedIn');
+      await broadcastScreenshot(page, 'Authenticated Success');
       await warmUpSession();
       return true;
     } else {
-      console.log('❌ LinkedIn authentication failed\n');
-      await broadcastScreenshot(page, 'Authentication failed');
+      console.log('❌ Authentication Verification Failed\n');
       return false;
     }
 
   } catch (error: any) {
-    console.error('❌ Authentication error:', error.message);
-    if (error.message.includes('ERR_TOO_MANY_REDIRECTS')) {
-        return false; // Trigger reset
-    }
+    console.error('❌ Critical Authentication Error:', error.message);
     return false;
   }
 }
@@ -937,9 +950,9 @@ async function warmUpSession() {
         await link.click({ button: 'left' });
         await humanDelay(3000, 6000);
         await humanScroll(page);
-        await humanDelay(2000, 4000);
+        await randomSleep(2000, 4000);
         await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-        await humanDelay(2000, 4000);
+        await randomSleep(2000, 4000);
       } catch {
         // Ignore single-link failures and continue
       }
@@ -961,6 +974,11 @@ function randomBetween(min: number, max: number): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function randomSleep(min: number, max: number) {
+  const ms = Math.floor(Math.random() * (max - min) + min);
+  return sleep(ms);
 }
 
 async function cleanup() {
