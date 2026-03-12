@@ -858,7 +858,7 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
     const nativeJSession = nativeCookies.find(c => c.name === 'JSESSIONID');
     
     if (nativeJSession) {
-       console.log('   Native JSESSIONID acquired: ' + nativeJSession.value.substring(0, 10) + '...');
+       console.log('   Native JSESSIONID acquired: ' + JSON.stringify(nativeJSession.value.substring(0, 15)) + '...');
     } else {
        console.log('   No native JSESSIONID found - will generate placeholder.');
     }
@@ -947,7 +947,16 @@ async function authenticateLinkedIn(sessionCookie: string): Promise<boolean> {
       await warmUpSession();
       return true;
     } else {
-      console.log('❌ Verification failed: Navigation elements not found.');
+      const failUrl = page.url();
+      const pageTitle = await page.title().catch(() => 'No Title');
+      console.log(`❌ Verification failed at: ${failUrl} (Title: "${pageTitle}")`);
+      
+      // Phase 9: Log page text snippet to see what's blocking
+      const pageText = await page.evaluate(() => document.body.innerText.substring(0, 500).replace(/\n/g, ' ')).catch(() => '');
+      console.log(`   Page Content Snippet: "${pageText}..."`);
+      
+      await broadcastLog(`Verification failed on page: ${pageTitle}. See screenshot.`, 'warn');
+      await broadcastScreenshot(page, 'Authentication Verification Failure');
       return false;
     }
 
