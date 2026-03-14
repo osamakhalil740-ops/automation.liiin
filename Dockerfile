@@ -1,23 +1,18 @@
 # Use the official Playwright image
 FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
-# Root user for setup
+# Switch to root to fix directory structure
 USER root
 
-# Create the user 'user' with UID 1000 and the home directory
-# Hugging Face Spaces expect UID 1000.
-RUN id -u user > /dev/null 2>&1 || useradd -m -u 1000 user
+# Hugging Face expect UID 1000. We'll just ensure the home directory exists
+# and is owned by UID 1000, regardless of the username.
+RUN mkdir -p /home/user/app && chown -R 1000:1000 /home/user
 
-# Set up the application directory
-WORKDIR /home/user/app
-
-# Ensure /home/user and its subdirectories are owned by UID 1000
-RUN chown -R 1000:1000 /home/user
-
-# Switch to UID 1000
+# Switch to UID 1000 (Standard for Hugging Face)
 USER 1000
 
-# Set environment variables
+# Set up the environment
+WORKDIR /home/user/app
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     npm_config_cache=/home/user/.npm
